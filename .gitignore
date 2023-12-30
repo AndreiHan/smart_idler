@@ -1,0 +1,10 @@
+.vscode
+target
+robot.db
+smart_tray/report.html
+smart_tray/report.json
+node_modules
+.prettierrc
+package.json
+package-lock.json
+.eslintrc.json
