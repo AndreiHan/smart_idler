@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script type="module" src="/main.js"></script>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="split left">
+        <h4>Statistics</h4>
+        <hr />
+        <form class="row">
+          <table class="app-data">
+            <tr>
+              <th>Input Interval</th>
+              <th>Last Input</th>
+              <th>Nr of robot inputs</th>
+            </tr>
+            <tr>
+              <td><p id="current-interval"></p></td>
+              <td><p id="last-input"></p></td>
+              <td><p id="robot-inputs"></p></td>
+            </tr>
+          </table>
+        </form>
+        <form class="row">
+          <div>
+            <button id="refresh-btn" type="button">Refresh</button>
+          </div>
+          <div>
+            <button id="restart-btn" type="button">Restart Tray</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="vl"></div>
+
+      <div class="split right">
+        <h4>Settings</h4>
+        <hr />
+        <form>
+          <input type="text" id="interval-data" placeholder="eg: Interval >= 60" />
+          <button id="submit-interval-btn" type="button">Set interval</button>
+        </form>
+        <form class="row">
+          <table class="app-data">
+            <tr>
+              <td>
+                <p>Start idle tray with Windows</p>
+              </td>
+              <td>
+                <label class="switch">
+                  <input type="checkbox" , id="startup-toggle" />
+                  <span class="slider round"></span>
+                </label>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <p>Start maintenance while idling</p>
+              </td>
+              <td>
+                <label class="switch">
+                  <input type="checkbox" id="mnts-toggle" />
+                  <span class="slider round"></span>
+                </label>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <p>Log Statistics</p>
+              </td>
+              <td>
+                <label class="switch">
+                  <input type="checkbox" , id="log-toggle" />
+                  <span class="slider round"></span>
+                </label>
+              </td>
+            </tr>
+          </table>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
