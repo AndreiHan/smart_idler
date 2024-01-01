@@ -17,6 +17,7 @@ use crate::registry_ops;
 use crate::win_mnts;
 
 static MONITOR_GUID: &str = "6FE69556-704A-47A0-8F24-C28D936FDA47";
+static DEFAULT_INTERVAL: u64 = 60;
 
 pub struct ExecState;
 
@@ -104,6 +105,19 @@ fn send_mouse_input(wheel_movement: i32) {
 }
 
 fn send_mixed_input() {
+    let mut log_input: bool = false;
+    let registry_data =
+        registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::LogStatistics).last_data;
+    if registry_data == registry_ops::RegistryState::Enabled.to_string() {
+        log_input = true;
+    }
+
+    if log_input {
+        send_to_db();
+    } else {
+        debug!("Did not log input => Logging to db is disabled")
+    }
+
     send_mouse_input(1);
     send_key_input();
     let local_time = registry_ops::get_current_time();
@@ -226,43 +240,46 @@ fn send_to_db() {
     info!("db items: {}", db.number_of_items);
 }
 
-pub fn idle_time(max_idle: u64) {
-    let mut log_input: bool = false;
-    let registry_data =
-        registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::LogStatistics).last_data;
-    if registry_data == registry_ops::RegistryState::Enabled.to_string() {
-        log_input = true;
-    }
-
-    let mut start_maintenance: bool = false;
-    let registry_data =
-        registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::StartMaintenance)
-            .last_data;
-    if registry_data == registry_ops::RegistryState::Enabled.to_string() {
-        start_maintenance = true;
-    }
+pub fn idle_time() {
+    let mut registry_interval =
+        registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::ForceInterval);
+    let mut registry_maintenance =
+        registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::StartMaintenance);
 
     let mut sleep_rotations = 0;
+    let mut start_maintenance: bool;
+
     loop {
+        registry_interval.update_local_data();
+        let max_idle = match registry_interval.last_data.parse() {
+            Ok(d) => d,
+            Err(err) => {
+                error!("Failed to get force interval data with err: {err} using default");
+                DEFAULT_INTERVAL
+            }
+        };
+
         let idle_time = get_last_input();
         let parted = max_idle * 94 / 100;
-        info!("Idle time {}", idle_time);
-        if idle_time >= (parted) {
+        if idle_time >= (max_idle * 94 / 100) {
             sleep_rotations = 0;
             send_mixed_input();
             if get_last_input() >= idle_time {
                 send_mixed_input();
             }
-            if log_input {
-                send_to_db();
-            } else {
-                debug!("Did not log input => Logging to db is disabled")
-            }
-            if start_maintenance {
-                win_mnts::Maintenance::change_state(&win_mnts::Commands::Start);
-            }
             continue;
         }
+
+        registry_maintenance.update_local_data();
+        if registry_maintenance.last_data.as_str()
+            == registry_ops::RegistryState::Enabled.to_string()
+        {
+            win_mnts::Maintenance::change_state(&win_mnts::Commands::Start);
+            start_maintenance = true;
+        } else {
+            start_maintenance = false;
+        }
+
         thread::sleep(Duration::from_secs(parted));
         sleep_rotations += 1;
         if sleep_rotations >= 2 && start_maintenance {

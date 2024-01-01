@@ -1,6 +1,5 @@
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use winreg::enums::*;
 use winreg::RegKey;
 
@@ -13,11 +12,11 @@ pub enum RegistryState {
     Disabled,
 }
 
-impl fmt::Display for RegistryState {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl ToString for RegistryState {
+    fn to_string(&self) -> String {
         match self {
-            RegistryState::Enabled => write!(f, "enabled"),
-            RegistryState::Disabled => write!(f, "disabled"),
+            RegistryState::Enabled => String::from("enabled"),
+            RegistryState::Disabled => String::from("disabled"),
         }
     }
 }

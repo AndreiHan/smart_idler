@@ -5,6 +5,7 @@ use idler_utils::sch_tasker;
 use log::error;
 use std::sync::Arc;
 use std::thread;
+use tauri::api::notification::Notification;
 use tauri::{CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem};
 
 use idler_utils::idler_win_utils;
@@ -24,17 +25,7 @@ fn main() {
     idler_win_utils::ExecState::start();
 
     let _ = RegistrySetting::new(RegistryEntries::LastRobotInput);
-    thread::spawn(move || {
-        let current_force_interval = RegistrySetting::new(RegistryEntries::ForceInterval);
-        let current_force_interval = match current_force_interval.last_data.parse() {
-            Ok(d) => d,
-            Err(err) => {
-                error!("Failed to get force interval data with err: {err}");
-                return;
-            }
-        };
-        idler_win_utils::idle_time(current_force_interval)
-    });
+    thread::spawn(move || idler_win_utils::idle_time);
 
     thread::spawn(move || {
         let _ = idler_win_utils::spawn_window();
@@ -93,6 +84,12 @@ fn main() {
 
     let moved_instance = Arc::clone(&instance_checker);
     tauri_app.run(move |_app_handle, event| match event {
+        tauri::RunEvent::Ready => {
+            let _ = Notification::new(&_app_handle.config().tauri.bundle.identifier)
+                .title("Ready")
+                .body("Smart Idler has started")
+                .show();
+        }
         tauri::RunEvent::ExitRequested { api, .. } => {
             api.prevent_exit();
         }
