@@ -2,3 +2,7 @@
 target
 robot.db
 controller/robot.db
+controller/report.html
+controller/report.json
+smart_tray/report.html
+smart_tray/report.json
