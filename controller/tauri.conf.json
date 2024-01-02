@@ -38,6 +38,8 @@
         "label": "controller",
         "fullscreen": false,
         "resizable": false,
+        "visible": false,
+        "center": true,
         "width": 900,
         "height": 425
       }

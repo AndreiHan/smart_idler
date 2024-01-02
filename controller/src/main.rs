@@ -77,15 +77,13 @@ fn main() {
         }
     };
 
-    match tauri_app.get_window("controller") {
-        Some(window) => {
-            let _ = window.set_title("Controller");
-            let _ = window.center();
-        }
-        None => error!("Failed to get window"),
-    }
-
-    tauri_app.run(move |_app_handle, event| match event {
+    tauri_app.run(move |app_handle, event| match event {
+        tauri::RunEvent::Ready => match app_handle.get_window("controller") {
+            Some(window) => {
+                let _ = window.show();
+            }
+            None => error!("Failed to get window"),
+        },
         tauri::RunEvent::Exit => {
             idler_win_utils::ExecState::stop();
             current_instance.exit();
