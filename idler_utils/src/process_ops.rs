@@ -1,4 +1,3 @@
-use std::fmt;
 use std::process::Command;
 use std::thread;
 
@@ -10,11 +9,11 @@ pub enum AppProcess {
     Controller,
 }
 
-impl fmt::Display for AppProcess {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl ToString for AppProcess {
+    fn to_string(&self) -> String {
         match self {
-            AppProcess::Controller => write!(f, "controller.exe"),
-            AppProcess::SysTray => write!(f, "smart_tray.exe"),
+            AppProcess::Controller => String::from("controller.exe"),
+            AppProcess::SysTray => String::from("smart_tray.exe"),
         }
     }
 }

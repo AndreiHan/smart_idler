@@ -30,6 +30,18 @@ pub enum RegistryEntries {
     StartWithWindows,
 }
 
+impl ToString for RegistryEntries {
+    fn to_string(&self) -> String {
+        match self {
+            RegistryEntries::ForceInterval => String::from("ForceInterval"),
+            RegistryEntries::LastRobotInput => String::from("LastRobotInput"),
+            RegistryEntries::StartMaintenance => String::from("StartMaintenance"),
+            RegistryEntries::LogStatistics => String::from("LogStatistics"),
+            RegistryEntries::StartWithWindows => String::from("StartWithWindows"),
+        }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct RegistrySetting {
     pub registry_entry: RegistryEntries,
@@ -42,8 +54,8 @@ impl RegistrySetting {
         match entry {
             RegistryEntries::ForceInterval => {
                 let mut new_settings = RegistrySetting {
-                    registry_entry: entry,
-                    registry_name: "ForceInterval".to_string(),
+                    registry_entry: entry.clone(),
+                    registry_name: entry.to_string(),
                     last_data: String::new(),
                 };
                 new_settings.update_local_data();
@@ -55,8 +67,8 @@ impl RegistrySetting {
             RegistryEntries::LastRobotInput => {
                 let current_time = get_current_time();
                 let mut new_settings = RegistrySetting {
-                    registry_entry: entry,
-                    registry_name: "LastRobotInterval".to_string(),
+                    registry_entry: entry.clone(),
+                    registry_name: entry.to_string(),
                     last_data: String::new(),
                 };
                 new_settings.update_local_data();
@@ -67,8 +79,8 @@ impl RegistrySetting {
             }
             RegistryEntries::StartMaintenance => {
                 let mut new_settings = RegistrySetting {
-                    registry_entry: entry,
-                    registry_name: "StartMaintenance".to_string(),
+                    registry_entry: entry.clone(),
+                    registry_name: entry.to_string(),
                     last_data: RegistryState::Disabled.to_string(),
                 };
                 new_settings.update_local_data();
@@ -79,8 +91,8 @@ impl RegistrySetting {
             }
             RegistryEntries::LogStatistics => {
                 let mut new_settings = RegistrySetting {
-                    registry_entry: entry,
-                    registry_name: "LogStatistics".to_string(),
+                    registry_entry: entry.clone(),
+                    registry_name: entry.to_string(),
                     last_data: RegistryState::Enabled.to_string(),
                 };
                 new_settings.update_local_data();
@@ -91,8 +103,8 @@ impl RegistrySetting {
             }
             RegistryEntries::StartWithWindows => {
                 let mut new_settings = RegistrySetting {
-                    registry_entry: entry,
-                    registry_name: "StartWithWindows".to_string(),
+                    registry_entry: entry.clone(),
+                    registry_name: entry.to_string(),
                     last_data: RegistryState::Disabled.to_string(),
                 };
                 new_settings.update_local_data();
