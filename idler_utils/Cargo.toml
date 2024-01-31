@@ -1,6 +1,5 @@
 [package]
 name = "idler_utils"
-
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
