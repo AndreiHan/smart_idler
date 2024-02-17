@@ -22,6 +22,7 @@ static DEFAULT_INTERVAL: u64 = 60;
 pub struct ExecState;
 
 impl ExecState {
+    #[inline]
     pub fn start() {
         unsafe {
             let state =
@@ -29,6 +30,7 @@ impl ExecState {
             info!("{:?} - ENABLE", state);
         }
     }
+    #[inline]
     pub fn stop() {
         unsafe {
             let state = SetThreadExecutionState(ES_CONTINUOUS);

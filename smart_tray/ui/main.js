@@ -69,7 +69,7 @@ submit_btn.addEventListener("click", () => {
 
 let restart_btn = document.getElementById("restart-btn");
 restart_btn.addEventListener("click", () => {
-  invoke("restart_controller");
+  // #TODO
 });
 
 let interval_btn = document.getElementById("submit-interval-btn");

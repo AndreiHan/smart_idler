@@ -167,6 +167,7 @@ impl RegistrySetting {
     }
 }
 
+#[inline]
 fn create_app_key() {
     std::thread::spawn(|| {
         let hkcu = RegKey::predef(HKEY_LOCAL_MACHINE);
@@ -177,6 +178,7 @@ fn create_app_key() {
     });
 }
 
+#[inline]
 pub fn get_current_time() -> String {
     Local::now().format("%H:%M:%S").to_string()
 }

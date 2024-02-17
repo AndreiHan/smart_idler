@@ -3,7 +3,6 @@ use idler_utils::registry_ops::RegistryState;
 use tauri::State;
 
 use idler_utils::db_ops;
-use idler_utils::process_ops;
 use idler_utils::registry_ops::{RegistryEntries, RegistrySetting};
 
 use crate::AppState;
@@ -80,18 +79,13 @@ pub fn set_registry_state(state: State<AppState>, data: String, wanted_status: b
     });
 }
 
-#[tauri::command]
-pub fn restart_controller() {
-    process_ops::restart_app(&process_ops::AppProcess::SysTray)
-}
-
 #[tauri::command(rename_all = "snake_case")]
 pub fn set_force_interval(interval: String) {
     let mut setting = RegistrySetting::new(RegistryEntries::ForceInterval);
     setting.set_registry_data(&interval);
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn tauri_get_db_count() -> String {
     if registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::LogStatistics).last_data
         == registry_ops::RegistryState::Disabled.to_string()

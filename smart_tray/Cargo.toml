@@ -13,8 +13,11 @@ idler_utils = { path = "../idler_utils" }
 
 log = { workspace = true }
 env_logger = { workspace = true }
-
-tauri = { workspace = true , features = [ "system-tray", "shell-open", "notification-all"] }
+serde = { workspace = true, features = ["derive", "rc"] }
+tauri = { workspace = true , features = [ 
+    "system-tray", "shell-open", "notification-all",
+    "window-close", "window-hide", "window-show"
+    ] }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
