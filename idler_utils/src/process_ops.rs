@@ -6,13 +6,11 @@ use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, Signal, System};
 #[derive(Copy, Clone, Debug)]
 pub enum AppProcess {
     SysTray,
-    Controller,
 }
 
 impl ToString for AppProcess {
     fn to_string(&self) -> String {
         match self {
-            AppProcess::Controller => String::from("controller.exe"),
             AppProcess::SysTray => String::from("smart_tray.exe"),
         }
     }

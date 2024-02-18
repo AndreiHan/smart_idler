@@ -23,6 +23,12 @@
       },
       "notification": {
         "all": true
+      },
+      "window": {
+        "all": false,
+        "close": true,
+        "hide": true,
+        "show": true
       }
     },
     "bundle": {

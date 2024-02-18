@@ -58,20 +58,48 @@ async function refresh_checkbox(checkbox_element) {
 window.addEventListener("DOMContentLoaded", () => {
   refresh_stats_table();
   refresh_all_checkboxes();
+
+  //-Shutdown load
+  invoke("get_shutdown_clock", { }).then(
+    (input) => (document.getElementById("timed-input").value = input)
+  );
+  invoke("get_shutdown_state", { }).then(
+    (input) => (document.getElementById("timed-stop").checked = input)
+  );
 });
 
 //-Buttons
-let submit_btn = document.getElementById("refresh-btn");
-submit_btn.addEventListener("click", () => {
-  refresh_stats_table();
-  refresh_all_checkboxes();
+
+
+//-Auto shutdown
+let time_input = document.getElementById("timed-input");
+time_input.addEventListener("change", () => {
+  var timeValue = event.target.value;
+  console.log("Time value: ", timeValue);
+  invoke("set_shutdown", {hour: timeValue});
+  document.getElementById("timed-stop").checked = true;
 });
 
-let restart_btn = document.getElementById("restart-btn");
-restart_btn.addEventListener("click", () => {
-  invoke("restart_controller");
+//-Enable shutdown
+let shutdown_checkbox = document.getElementById("timed-stop");
+shutdown_checkbox.addEventListener("click", () => {
+  if (shutdown_checkbox.checked == true) {
+    var timeValue = document.getElementById("timed-input").value;
+    console.log("Value enabled: " + timeValue);
+    if (timeValue == "STOP" || timeValue == ""){
+      var timeValue = "19:00"
+    }
+    invoke("set_shutdown", {hour: timeValue});
+    document.getElementById("timed-input").value = timeValue;
+  } else {
+    invoke("set_shutdown", {hour: "STOP"});
+    try{ document.getElementById("timed-input").value = "STOP"; }
+    catch(e){}
+     
+  }
 });
 
+//-Submit button
 let interval_btn = document.getElementById("submit-interval-btn");
 interval_btn.addEventListener("click", async () => {
   let textbox = document.getElementById("interval-data");

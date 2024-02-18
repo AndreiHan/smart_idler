@@ -8,6 +8,7 @@ use sysinfo::{Pid, RefreshKind, System};
 
 use crate::process_ops;
 
+#[inline]
 fn get_file_name(app: &process_ops::AppProcess) -> String {
     app.to_string().replace(".exe", ".lock")
 }
@@ -58,6 +59,7 @@ fn check_existing_file(file_path: &PathBuf) {
     }
 }
 
+#[inline]
 fn create_lock_file(file_path: &PathBuf) -> Result<(), ()> {
     let mut file = File::create(file_path).unwrap();
 
