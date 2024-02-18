@@ -27,6 +27,7 @@ mod commands;
 #[derive(Debug)]
 struct Channel {
     tx: Arc<Mutex<mpsc::Sender<String>>>,
+    active: Arc<Mutex<bool>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -36,6 +37,7 @@ pub struct AppState {
     logging: Arc<Mutex<RegistrySetting>>,
     maintenance: Arc<Mutex<RegistrySetting>>,
     startup: Arc<Mutex<RegistrySetting>>,
+    shutdown: Arc<Mutex<RegistrySetting>>,
 }
 
 impl Default for AppState {
@@ -55,6 +57,9 @@ impl Default for AppState {
             ))),
             startup: Arc::new(Mutex::new(RegistrySetting::new(
                 RegistryEntries::StartWithWindows,
+            ))),
+            shutdown: Arc::new(Mutex::new(RegistrySetting::new(
+                RegistryEntries::ShutdownTime,
             ))),
         }
     }
@@ -172,7 +177,10 @@ fn main() {
     let moved_instance = Arc::clone(&instance_checker);
     let (tx, rx) = mpsc::channel();
     let tx = Arc::new(Mutex::new(tx));
-    let channel = Channel { tx };
+    let channel = Channel {
+        tx,
+        active: Arc::new(Mutex::new(false)),
+    };
     close_app_remote(rx);
 
     let tauri_app = tauri::Builder::default()
@@ -184,7 +192,9 @@ fn main() {
             commands::set_registry_state,
             commands::set_force_interval,
             commands::tauri_get_db_count,
-            commands::set_shutdown
+            commands::set_shutdown,
+            commands::get_shutdown_clock,
+            commands::get_shutdown_state
         ])
         .system_tray(SystemTray::new().with_menu(tray_menu))
         .on_system_tray_event(move |app, event| match event {

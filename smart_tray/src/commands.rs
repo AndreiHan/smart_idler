@@ -9,10 +9,35 @@ use crate::AppState;
 use crate::Channel;
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn set_shutdown(state: State<Channel>, hour: String) {
-    let tx = &state.tx.lock().unwrap();
+pub fn get_shutdown_state(channel: State<Channel>) -> bool {
+    *channel.active.lock().unwrap()
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_shutdown_clock(state: State<AppState>) -> String {
+    let mut setting = match state.shutdown.lock() {
+        Ok(h) => h,
+        Err(err) => {
+            error!("Failed to lock shutdown with err: {}", err);
+            return "".to_string();
+        }
+    };
+
+    setting.update_local_data();
+    setting.last_data.clone()
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn set_shutdown(channel_state: State<Channel>, app_state: State<AppState>, hour: String) {
+    let tx = &channel_state.tx.lock().unwrap();
     debug!("Sent shutdown date:, {}", hour);
-    let _ = tx.send(hour);
+    let _ = tx.send(hour.clone());
+
+    let mut active = channel_state.active.lock().unwrap();
+    *active = hour != "STOP";
+
+    let mut setting = app_state.shutdown.lock().unwrap();
+    setting.set_registry_data(&hour);
 }
 
 #[tauri::command(rename_all = "snake_case")]

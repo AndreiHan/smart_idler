@@ -28,6 +28,7 @@ pub enum RegistryEntries {
     StartMaintenance,
     LogStatistics,
     StartWithWindows,
+    ShutdownTime,
 }
 
 impl ToString for RegistryEntries {
@@ -38,6 +39,7 @@ impl ToString for RegistryEntries {
             RegistryEntries::StartMaintenance => String::from("StartMaintenance"),
             RegistryEntries::LogStatistics => String::from("LogStatistics"),
             RegistryEntries::StartWithWindows => String::from("StartWithWindows"),
+            RegistryEntries::ShutdownTime => String::from("ShutdownTime"),
         }
     }
 }
@@ -110,6 +112,18 @@ impl RegistrySetting {
                 new_settings.update_local_data();
                 if new_settings.last_data.is_empty() {
                     new_settings.set_registry_data(&RegistryState::Disabled.to_string());
+                }
+                new_settings
+            }
+            RegistryEntries::ShutdownTime => {
+                let mut new_settings = RegistrySetting {
+                    registry_entry: entry.clone(),
+                    registry_name: entry.to_string(),
+                    last_data: RegistryState::Disabled.to_string(),
+                };
+                new_settings.update_local_data();
+                if new_settings.last_data.is_empty() {
+                    new_settings.set_registry_data(&"18:00".to_string());
                 }
                 new_settings
             }
