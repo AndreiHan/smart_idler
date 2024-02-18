@@ -2,12 +2,15 @@
 #[macro_use]
 extern crate log;
 
+use chrono::{Local, NaiveTime};
 use idler_utils::registry_ops::RegistryState;
 use idler_utils::sch_tasker;
 use log::error;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
-use std::thread;
+use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::Duration;
+use std::{process, thread};
 use tauri::api::notification::Notification;
 use tauri::{
     CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem,
@@ -20,6 +23,11 @@ use idler_utils::registry_ops::{RegistryEntries, RegistrySetting};
 use idler_utils::single_instance::SingleInstance;
 
 mod commands;
+
+#[derive(Debug)]
+struct Channel {
+    tx: Arc<Mutex<mpsc::Sender<String>>>,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppState {
@@ -82,6 +90,50 @@ fn build_controller(app: &tauri::AppHandle) {
     });
 }
 
+fn close_app_remote(rx: Receiver<String>) {
+    thread::spawn(move || {
+        let mut _sender: Option<mpsc::Sender<()>> = None;
+        loop {
+            match rx.recv() {
+                Ok(hour) => {
+                    debug!("Received time: {:?}", hour);
+                    let received_time = match NaiveTime::parse_from_str(&hour, "%H:%M") {
+                        Ok(val) => val,
+                        Err(_) => {
+                            info!("Received non time value, {}. Ignorring", hour);
+                            _sender = None;
+                            continue;
+                        }
+                    };
+                    let (sen, receiver) = mpsc::channel::<()>();
+                    _sender = Some(sen);
+                    thread::spawn(move || loop {
+                        let diff = received_time - Local::now().time();
+                        if diff.num_seconds() <= 0 {
+                            warn!("Shutdown");
+                            idler_win_utils::ExecState::stop();
+                            process::exit(0);
+                        }
+                        thread::sleep(Duration::from_millis(500));
+                        match receiver.try_recv() {
+                            Ok(_) | Err(TryRecvError::Disconnected) => {
+                                info!("Cancelling task for: {}", received_time);
+                                break;
+                            }
+                            Err(TryRecvError::Empty) => {}
+                        }
+                    });
+                    thread::sleep(Duration::from_millis(500));
+                }
+                Err(err) => {
+                    debug!("Received err: {}", err);
+                    return;
+                }
+            }
+        }
+    });
+}
+
 fn main() {
     if cfg!(debug_assertions) {
         env_logger::init_from_env(
@@ -118,15 +170,21 @@ fn main() {
         .add_item(quit);
 
     let moved_instance = Arc::clone(&instance_checker);
+    let (tx, rx) = mpsc::channel();
+    let tx = Arc::new(Mutex::new(tx));
+    let channel = Channel { tx };
+    close_app_remote(rx);
 
     let tauri_app = tauri::Builder::default()
         .manage(AppState::default())
+        .manage(channel)
         .invoke_handler(tauri::generate_handler![
             commands::get_data,
             commands::get_state,
             commands::set_registry_state,
             commands::set_force_interval,
             commands::tauri_get_db_count,
+            commands::set_shutdown
         ])
         .system_tray(SystemTray::new().with_menu(tray_menu))
         .on_system_tray_event(move |app, event| match event {

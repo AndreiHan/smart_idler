@@ -9,6 +9,9 @@
 
   <body>
     <div class="container">
+      <div>
+        <button id="refresh-btn" type="button">Refresh</button>
+      </div>
       <div class="split left">
         <h4>Statistics</h4>
         <hr />
@@ -27,12 +30,20 @@
           </table>
         </form>
         <form class="row">
-          <div>
-            <button id="refresh-btn" type="button">Refresh</button>
-          </div>
-          <div>
-            <button id="restart-btn" type="button"> Force Apply Settings</button>
-          </div>
+          <table class="app-data">
+            <tr>
+              <td>
+                <p>Stop Smart Idler at</p>
+                <input type="time" id="timed-input" value="19:00" required />
+              </td>
+              <td>
+                <label class="switch">
+                  <input type="checkbox" , id="timed-stop" />
+                  <span class="slider round"></span>
+                </label>
+              </td>
+            </tr>
+          </table>
         </form>
       </div>
 

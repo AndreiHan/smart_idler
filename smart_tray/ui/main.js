@@ -67,11 +67,28 @@ submit_btn.addEventListener("click", () => {
   refresh_all_checkboxes();
 });
 
-let restart_btn = document.getElementById("restart-btn");
-restart_btn.addEventListener("click", () => {
-  // #TODO
+
+//-Auto shutdown
+let time_input = document.getElementById("timed-input");
+time_input.addEventListener("change", () => {
+  var timeValue = event.target.value;
+  console.log("Time value: ", timeValue);
+  invoke("set_shutdown", {hour: timeValue});
+  document.getElementById("timed-stop").checked = true;
 });
 
+//-Enable shutdown
+let shutdown_checkbox = document.getElementById("timed-stop");
+shutdown_checkbox.addEventListener("click", () => {
+  if (shutdown_checkbox.checked == true) {
+    var timeValue = document.getElementById("timed-input").value;
+    invoke("set_shutdown", {hour: timeValue});
+  } else {
+    invoke("set_shutdown", {hour: "STOP"});
+  }
+});
+
+//-Submit button
 let interval_btn = document.getElementById("submit-interval-btn");
 interval_btn.addEventListener("click", async () => {
   let textbox = document.getElementById("interval-data");

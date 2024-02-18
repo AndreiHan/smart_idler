@@ -3186,6 +3186,7 @@ checksum = "e6ecd384b10a64542d77071bd64bd7b231f4ed5940fba55e98c3de13824cf3d7"
 name = "smart_tray"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "env_logger",
  "idler_utils",
  "log",

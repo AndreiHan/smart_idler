@@ -6,6 +6,14 @@ use idler_utils::db_ops;
 use idler_utils::registry_ops::{RegistryEntries, RegistrySetting};
 
 use crate::AppState;
+use crate::Channel;
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn set_shutdown(state: State<Channel>, hour: String) {
+    let tx = &state.tx.lock().unwrap();
+    debug!("Sent shutdown date:, {}", hour);
+    let _ = tx.send(hour);
+}
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn get_data(state: State<AppState>, data: String) -> String {
