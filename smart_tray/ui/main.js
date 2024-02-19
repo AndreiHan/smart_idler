@@ -60,23 +60,22 @@ window.addEventListener("DOMContentLoaded", () => {
   refresh_all_checkboxes();
 
   //-Shutdown load
-  invoke("get_shutdown_clock", { }).then(
+  invoke("get_shutdown_clock", {}).then(
     (input) => (document.getElementById("timed-input").value = input)
   );
-  invoke("get_shutdown_state", { }).then(
+  invoke("get_shutdown_state", {}).then(
     (input) => (document.getElementById("timed-stop").checked = input)
   );
 });
 
 //-Buttons
 
-
 //-Auto shutdown
 let time_input = document.getElementById("timed-input");
 time_input.addEventListener("change", () => {
   var timeValue = event.target.value;
   console.log("Time value: ", timeValue);
-  invoke("set_shutdown", {hour: timeValue});
+  invoke("set_shutdown", { hour: timeValue });
   document.getElementById("timed-stop").checked = true;
 });
 
@@ -86,16 +85,16 @@ shutdown_checkbox.addEventListener("click", () => {
   if (shutdown_checkbox.checked == true) {
     var timeValue = document.getElementById("timed-input").value;
     console.log("Value enabled: " + timeValue);
-    if (timeValue == "STOP" || timeValue == ""){
-      var timeValue = "19:00"
+    if (timeValue == "STOP" || timeValue == "") {
+      var timeValue = "19:00";
     }
-    invoke("set_shutdown", {hour: timeValue});
+    invoke("set_shutdown", { hour: timeValue });
     document.getElementById("timed-input").value = timeValue;
   } else {
-    invoke("set_shutdown", {hour: "STOP"});
-    try{ document.getElementById("timed-input").value = "STOP"; }
-    catch(e){}
-     
+    invoke("set_shutdown", { hour: "STOP" });
+    try {
+      document.getElementById("timed-input").value = "STOP";
+    } catch (e) {}
   }
 });
 
