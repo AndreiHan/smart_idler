@@ -3,6 +3,8 @@ use std::env::current_exe;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use anyhow::{anyhow, Result};
+
 const TASK_NAME: &str = "SmartIdler";
 
 fn get_schtasks_path() -> Option<PathBuf> {
@@ -32,13 +34,13 @@ fn get_schtasks_path() -> Option<PathBuf> {
     }
 }
 
-pub fn delete_rule(schtasks: Option<&PathBuf>) {
+pub fn delete_rule(schtasks: Option<&PathBuf>) -> Result<()> {
     let schtasks_path: PathBuf = match schtasks {
         None => match get_schtasks_path() {
             Some(p) => p,
             None => {
                 error!("Failed to get schtasks path");
-                return;
+                return Err(anyhow!("Path issue"));
             }
         },
         Some(path) => path.to_path_buf(),
@@ -53,39 +55,42 @@ pub fn delete_rule(schtasks: Option<&PathBuf>) {
         }
         Err(err) => {
             error!("Failed sending delete command: {}", err);
-            return;
+            return Err(anyhow!("Failed to run command"));
         }
     };
     match output.status.code() {
         Some(value) => match value {
             0 => {
                 info!("Deleted Task with name: {} | {:?}", TASK_NAME, output);
+                Ok(())
             }
-            _ => {
+            err => {
                 info!(
                     "Failed Deleting task with name: {} | {:?}",
                     TASK_NAME, output
                 );
+                Err(anyhow!("Error: {}", err))
             }
         },
         None => {
             error!("Failed parsing output");
+            Err(anyhow!("Formatting issue"))
         }
     }
 }
 
-pub fn enable_rule() {
+pub fn enable_rule() -> Result<()> {
     let schtasks_path = match get_schtasks_path() {
         None => {
             error!("Failed to get schtasks path");
-            return;
+            return Err(anyhow!("Path issue"));
         }
         Some(path) => {
             debug!("schtasks path: {:?}", path.to_str());
             path
         }
     };
-    delete_rule(Some(&schtasks_path));
+    delete_rule(Some(&schtasks_path))?;
     let mut scheduler = Command::new(schtasks_path);
 
     let exe_path = match current_exe() {
@@ -95,7 +100,7 @@ pub fn enable_rule() {
         }
         Err(e) => {
             error!("Failed to get exe path: {:?}", e.to_string());
-            return;
+            return Err(e.into());
         }
     };
 
@@ -103,7 +108,7 @@ pub fn enable_rule() {
         Some(value) => value,
         None => {
             error!("Failed to convert {:?} to str", exe_path);
-            return;
+            return Err(anyhow!("conversion issue"));
         }
     };
 
@@ -125,17 +130,22 @@ pub fn enable_rule() {
         }
         Err(e) => {
             error!("Failed output: {:?}", e);
-            return;
+            return Err(e.into());
         }
     };
     match output.status.code() {
-        None => debug!("Closed with signal"),
+        None => {
+            debug!("Closed with signal");
+            Ok(())
+        }
         Some(err_no) => match err_no {
             0 => {
-                info!("Set task with name: {}", TASK_NAME)
+                info!("Set task with name: {}", TASK_NAME);
+                Ok(())
             }
             err => {
-                error!("Failed to set task with err: {} | {:?}", err, output)
+                error!("Failed to set task with err: {} | {:?}", err, output);
+                Err(anyhow!("Failed with err: {}", err))
             }
         },
     }

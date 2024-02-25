@@ -1,9 +1,8 @@
+use idler_utils::db_ops;
 use idler_utils::registry_ops;
 use idler_utils::registry_ops::RegistryState;
-use tauri::State;
-
-use idler_utils::db_ops;
 use idler_utils::registry_ops::{RegistryEntries, RegistrySetting};
+use tauri::State;
 
 use crate::AppState;
 use crate::Channel;
@@ -23,21 +22,39 @@ pub fn get_shutdown_clock(state: State<AppState>) -> String {
         }
     };
 
-    setting.update_local_data();
+    let _ = setting.update_local_data();
     setting.last_data.clone()
 }
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn set_shutdown(channel_state: State<Channel>, app_state: State<AppState>, hour: String) {
-    let tx = &channel_state.tx.lock().unwrap();
+    let tx = match channel_state.tx.lock() {
+        Ok(val) => val,
+        Err(err) => {
+            error!("Failed to lock tx, err: {}", err);
+            return;
+        }
+    };
     debug!("Sent shutdown date:, {}", hour);
     let _ = tx.send(hour.clone());
 
-    let mut active = channel_state.active.lock().unwrap();
+    let mut active = match channel_state.active.lock() {
+        Ok(val) => val,
+        Err(err) => {
+            error!("Failed to lock channel_state.active, err: {err}");
+            return;
+        }
+    };
     *active = hour != "STOP";
 
-    let mut setting = app_state.shutdown.lock().unwrap();
-    setting.set_registry_data(&hour);
+    let mut setting = match app_state.shutdown.lock() {
+        Ok(set) => set,
+        Err(err) => {
+            error!("Failed to lock app_state.shutdown, err: {}", err);
+            return;
+        }
+    };
+    let _ = setting.set_registry_data(&hour);
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -57,7 +74,7 @@ pub fn get_data(state: State<AppState>, data: String) -> String {
             return String::new();
         }
     };
-    setting.update_local_data();
+    let _ = setting.update_local_data();
     setting.last_data.clone()
 }
 
@@ -79,7 +96,7 @@ pub fn get_state(state: State<AppState>, data: String) -> bool {
             return false;
         }
     };
-    setting.update_local_data();
+    let _ = setting.update_local_data();
     if setting.last_data == RegistryState::Enabled.to_string() {
         return true;
     }
@@ -106,7 +123,7 @@ pub fn set_registry_state(state: State<AppState>, data: String, wanted_status: b
             return;
         }
     };
-    setting.set_registry_data(match wanted_status {
+    let _ = setting.set_registry_data(match wanted_status {
         true => &enabled,
         false => &disabled,
     });
@@ -115,19 +132,19 @@ pub fn set_registry_state(state: State<AppState>, data: String, wanted_status: b
 #[tauri::command(rename_all = "snake_case")]
 pub fn set_force_interval(interval: String) {
     let mut setting = RegistrySetting::new(RegistryEntries::ForceInterval);
-    setting.set_registry_data(&interval);
+    let _ = setting.set_registry_data(&interval);
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn tauri_get_db_count() -> String {
+pub fn tauri_get_db_count() -> Result<String, ()> {
     if registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::LogStatistics).last_data
         == registry_ops::RegistryState::Disabled.to_string()
     {
-        return String::from("Disabled");
+        return Ok(String::from("Disabled"));
     }
     let db = db_ops::RobotDatabase::new();
     if db.is_none() {
-        return String::new();
+        return Err(());
     }
-    db.unwrap().number_of_items.to_string()
+    Ok(db.unwrap().number_of_items.to_string())
 }

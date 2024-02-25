@@ -9,6 +9,7 @@ log = { workspace = true }
 env_logger = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+anyhow = {workspace = true}
 
 sysinfo = "0.30.5"
 chrono = "0.4.34"

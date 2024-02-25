@@ -2,6 +2,7 @@
 #[macro_use]
 extern crate log;
 
+use anyhow::Result;
 use chrono::{Local, NaiveTime};
 use idler_utils::registry_ops::RegistryState;
 use idler_utils::sch_tasker;
@@ -26,41 +27,29 @@ mod commands;
 
 #[derive(Debug)]
 struct Channel {
-    tx: Arc<Mutex<mpsc::Sender<String>>>,
-    active: Arc<Mutex<bool>>,
+    tx: Mutex<mpsc::Sender<String>>,
+    active: Mutex<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppState {
-    force_interval: Arc<Mutex<RegistrySetting>>,
-    robot_input: Arc<Mutex<RegistrySetting>>,
-    logging: Arc<Mutex<RegistrySetting>>,
-    maintenance: Arc<Mutex<RegistrySetting>>,
-    startup: Arc<Mutex<RegistrySetting>>,
-    shutdown: Arc<Mutex<RegistrySetting>>,
+    force_interval: Mutex<RegistrySetting>,
+    robot_input: Mutex<RegistrySetting>,
+    logging: Mutex<RegistrySetting>,
+    maintenance: Mutex<RegistrySetting>,
+    startup: Mutex<RegistrySetting>,
+    shutdown: Mutex<RegistrySetting>,
 }
 
 impl Default for AppState {
     fn default() -> Self {
         AppState {
-            force_interval: Arc::new(Mutex::new(RegistrySetting::new(
-                RegistryEntries::ForceInterval,
-            ))),
-            robot_input: Arc::new(Mutex::new(RegistrySetting::new(
-                RegistryEntries::LastRobotInput,
-            ))),
-            logging: Arc::new(Mutex::new(RegistrySetting::new(
-                RegistryEntries::LogStatistics,
-            ))),
-            maintenance: Arc::new(Mutex::new(RegistrySetting::new(
-                RegistryEntries::StartMaintenance,
-            ))),
-            startup: Arc::new(Mutex::new(RegistrySetting::new(
-                RegistryEntries::StartWithWindows,
-            ))),
-            shutdown: Arc::new(Mutex::new(RegistrySetting::new(
-                RegistryEntries::ShutdownTime,
-            ))),
+            force_interval: Mutex::new(RegistrySetting::new(RegistryEntries::ForceInterval)),
+            robot_input: Mutex::new(RegistrySetting::new(RegistryEntries::LastRobotInput)),
+            logging: Mutex::new(RegistrySetting::new(RegistryEntries::LogStatistics)),
+            maintenance: Mutex::new(RegistrySetting::new(RegistryEntries::StartMaintenance)),
+            startup: Mutex::new(RegistrySetting::new(RegistryEntries::StartWithWindows)),
+            shutdown: Mutex::new(RegistrySetting::new(RegistryEntries::ShutdownTime)),
         }
     }
 }
@@ -139,7 +128,7 @@ fn close_app_remote(rx: Receiver<String>) {
     });
 }
 
-fn main() {
+fn main() -> Result<()> {
     if cfg!(debug_assertions) {
         env_logger::init_from_env(
             env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "debug"),
@@ -147,7 +136,10 @@ fn main() {
     }
 
     let instance_checker = Arc::new(SingleInstance::new(process_ops::AppProcess::SysTray));
-    instance_checker.check();
+    match instance_checker.check() {
+        Ok(_) => info!("Performed single instance check"),
+        Err(_) => error!("Failed to perform single instance check"),
+    }
     idler_win_utils::ExecState::start();
 
     let _ = RegistrySetting::new(RegistryEntries::LastRobotInput);
@@ -176,10 +168,10 @@ fn main() {
 
     let moved_instance = Arc::clone(&instance_checker);
     let (tx, rx) = mpsc::channel();
-    let tx = Arc::new(Mutex::new(tx));
+    let tx = Mutex::new(tx);
     let channel = Channel {
         tx,
-        active: Arc::new(Mutex::new(false)),
+        active: Mutex::new(false),
     };
     close_app_remote(rx);
 
@@ -206,7 +198,7 @@ fn main() {
                     }
                     "quit" => {
                         idler_win_utils::ExecState::stop();
-                        moved_instance.exit();
+                        let _ = moved_instance.exit();
                         std::process::exit(0);
                     }
                     _ => {}
@@ -223,7 +215,7 @@ fn main() {
         Ok(app) => app,
         Err(err) => {
             error!("Failed to build tray app with err {}", err);
-            return;
+            return Err(err.into());
         }
     };
 
@@ -240,8 +232,9 @@ fn main() {
         }
         tauri::RunEvent::Exit => {
             idler_win_utils::ExecState::stop();
-            moved_instance.exit();
+            let _ = moved_instance.exit();
         }
         _ => {}
     });
+    Ok(())
 }

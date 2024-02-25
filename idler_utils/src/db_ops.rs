@@ -1,7 +1,7 @@
+use anyhow::{Context, Result};
+use rusqlite::Connection;
 use std::fs;
 use std::path::PathBuf;
-
-use rusqlite::{Connection, Result};
 
 const DB_NAME: &str = "robot.db";
 
@@ -34,7 +34,7 @@ impl RobotDatabase {
         Some(db)
     }
 
-    pub fn insert_to_db(&mut self, data: &RobotInput) {
+    pub fn insert_to_db(&mut self, data: &RobotInput) -> Result<()> {
         match self.connection.execute(
             "INSERT INTO robot (input_time, interval) VALUES (?1, ?2)",
             (&data.input_time, &data.interval),
@@ -42,8 +42,12 @@ impl RobotDatabase {
             Ok(_) => {
                 info!("Inserted {:?} to db", data);
                 self.number_of_items += 1;
+                Ok(())
             }
-            Err(err) => error!("Failed to insert {:?} to db with err: {}", data, err),
+            Err(err) => {
+                error!("Failed to insert {:?} to db with err: {}", data, err);
+                Err(err.into())
+            }
         }
     }
 
@@ -76,7 +80,7 @@ fn get_db_connection() -> Result<Connection> {
     let db_path = PathBuf::from(DB_NAME);
     if db_path.is_file() {
         debug!("Found db file: {:?}", &db_path);
-        return Connection::open(&db_path);
+        return Connection::open(&db_path).context("Failed to open db");
     }
 
     let _ = fs::File::create(&db_path);
@@ -95,7 +99,7 @@ fn get_db_connection() -> Result<Connection> {
         }
         Err(err) => {
             error!("Failed to create table with err: {}", err);
-            Err(err)
+            Err(err.into())
         }
     }
 }

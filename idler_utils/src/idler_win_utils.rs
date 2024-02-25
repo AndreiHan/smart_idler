@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use std::mem::size_of_val;
 use std::ptr::{addr_of, addr_of_mut};
 use std::thread;
@@ -115,7 +116,7 @@ fn send_mixed_input() {
     }
 
     if log_input {
-        send_to_db();
+        let _ = send_to_db();
     } else {
         debug!("Did not log input => Logging to db is disabled")
     }
@@ -123,7 +124,7 @@ fn send_mixed_input() {
     send_mouse_input(1);
     send_key_input();
     let local_time = registry_ops::get_current_time();
-    registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::LastRobotInput)
+    let _ = registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::LastRobotInput)
         .set_registry_data(&local_time);
 }
 
@@ -162,7 +163,11 @@ pub fn spawn_window() -> Result<()> {
             None,
         );
         let guid = GUID::from(MONITOR_GUID);
-        match RegisterPowerSettingNotification(GetCurrentProcess(), addr_of!(guid), REGISTER_NOTIFICATION_FLAGS(0)) {
+        match RegisterPowerSettingNotification(
+            GetCurrentProcess(),
+            addr_of!(guid),
+            REGISTER_NOTIFICATION_FLAGS(0),
+        ) {
             Ok(_) => {
                 info!("Registered for power notifications")
             }
@@ -195,10 +200,10 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
                     let guid = GUID::from(MONITOR_GUID);
                     if st.PowerSetting == guid && st.Data == [0] {
                         thread::spawn(|| send_mixed_input);
-                        registry_ops::RegistrySetting::new(
+                        let _ = registry_ops::RegistrySetting::new(
                             registry_ops::RegistryEntries::LastRobotInput,
                         )
-                        .set_registry_data(&registry_ops::get_current_time())
+                        .set_registry_data(&registry_ops::get_current_time());
                     }
                 }
                 LRESULT(0)
@@ -211,7 +216,7 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
     }
 }
 
-fn get_last_input() -> u64 {
+fn get_last_input() -> Option<u64> {
     let mut last_input = LASTINPUTINFO {
         cbSize: 0,
         dwTime: 0,
@@ -221,28 +226,26 @@ fn get_last_input() -> u64 {
     unsafe {
         if GetLastInputInfo(addr_of_mut!(last_input)) != BOOL(1) {
             error!("Failed to get last input info");
-            return 0;
+            return None;
         }
         let total_ticks = GetTickCount64();
-        Duration::from_millis(total_ticks - last_input.dwTime as u64).as_secs()
+        Some(Duration::from_millis(total_ticks - last_input.dwTime as u64).as_secs())
     }
 }
 
-fn send_to_db() {
-    let db = db_ops::RobotDatabase::new();
-    if db.is_none() {
-        return;
-    }
-    let mut db: db_ops::RobotDatabase = db.unwrap();
+fn send_to_db() -> Result<()> {
+    let mut db = db_ops::RobotDatabase::new().context("Db is none")?;
+
     db.insert_to_db(&db_ops::RobotInput {
         input_time: registry_ops::get_current_time(),
         interval: registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::ForceInterval)
             .last_data,
-    });
+    })?;
     info!("db items: {}", db.number_of_items);
+    Ok(())
 }
 
-pub fn idle_time() {
+pub fn idle_time() -> Result<()> {
     let mut registry_interval =
         registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::ForceInterval);
     let mut registry_maintenance =
@@ -252,7 +255,7 @@ pub fn idle_time() {
     let mut start_maintenance: bool;
 
     loop {
-        registry_interval.update_local_data();
+        let _ = registry_interval.update_local_data();
         let max_idle = match registry_interval.last_data.parse() {
             Ok(d) => d,
             Err(err) => {
@@ -261,18 +264,19 @@ pub fn idle_time() {
             }
         };
 
-        let idle_time = get_last_input();
+        let idle_time = get_last_input().unwrap_or(0);
+
         let parted = max_idle * 94 / 100;
         if idle_time >= (max_idle * 94 / 100) {
             sleep_rotations = 0;
             send_mixed_input();
-            if get_last_input() >= idle_time {
+            if get_last_input() >= Some(idle_time) {
                 send_mixed_input();
             }
             continue;
         }
 
-        registry_maintenance.update_local_data();
+        let _ = registry_maintenance.update_local_data();
         if registry_maintenance.last_data.as_str()
             == registry_ops::RegistryState::Enabled.to_string()
         {

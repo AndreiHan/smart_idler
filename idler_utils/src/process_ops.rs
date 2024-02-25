@@ -1,6 +1,7 @@
-use std::process::Command;
 use std::thread;
+use std::{fmt::Debug, process::Command};
 
+use anyhow::{anyhow, Result};
 use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, Signal, System};
 
 #[derive(Copy, Clone, Debug)]
@@ -29,49 +30,63 @@ pub fn restart_app(app: &AppProcess) {
         info!("Restarting app: {:?}", &current_app);
         let app_pid = get_pid(&current_app);
         if app_pid.is_none() {
-            open_app(&current_app, false)
+            let _ = open_app(&current_app, false);
         } else {
-            kill_app(&current_app, true);
-            open_app(&current_app, false);
+            let _ = kill_app(&current_app, true);
+            let _ = open_app(&current_app, false);
         }
     });
 }
 
-pub fn kill_app(app: &AppProcess, wait_to_finish: bool) {
+pub fn kill_app(app: &AppProcess, wait_to_finish: bool) -> Result<()> {
     let current_app = *app;
     let kill_handle = std::thread::spawn(move || {
         let s = get_system_exe();
         if let Some(process) = s.process(Pid::from(get_pid(&current_app).unwrap() as usize)) {
             if process.kill_with(Signal::Kill).is_none() {
                 error!("This signal isn't supported on this platform");
+                return Err(anyhow!("Unsupported platform for kill signal"));
             }
             info!("Killed {:?}", &current_app);
         }
+        Ok(())
     });
     if !wait_to_finish {
-        return;
+        return Ok(());
     }
 
     match kill_handle.join() {
-        Ok(_) => info!("Closed kill thread for {:?}", app),
-        Err(err) => error!("Failed to close thread with err: {:?}", err),
+        Ok(_) => {
+            info!("Closed kill thread for {:?}", app);
+            Ok(())
+        }
+        Err(err) => {
+            error!("Failed to close thread with err: {:?}", err);
+            Err(anyhow!("Failed join, err: {:?}", err))
+        }
     }
 }
 
-pub fn open_app(app: &AppProcess, wait_to_finish: bool) {
+pub fn open_app(app: &AppProcess, wait_to_finish: bool) -> Result<()> {
     let current_app = *app;
     let open_handle = thread::spawn(move || {
         info!("Opened app: {:?}", &current_app);
-        Command::new(current_app.to_string()).output().unwrap();
+        let _ = Command::new(current_app.to_string()).output();
     });
 
     if !wait_to_finish {
-        return;
+        return Ok(());
     }
 
     match open_handle.join() {
-        Ok(_) => info!("Closed kill thread for {:?}", app),
-        Err(err) => error!("Failed to close thread with err: {:?}", err),
+        Ok(_) => {
+            info!("Closed kill thread for {:?}", app);
+            Ok(())
+        }
+        Err(err) => {
+            error!("Failed to close thread with err: {:?}", err);
+            Err(anyhow!("{:?}", err))
+        }
     }
 }
 

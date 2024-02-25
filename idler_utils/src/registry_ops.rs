@@ -1,6 +1,6 @@
+use anyhow::Result;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-
 use windows_registry::LOCAL_MACHINE;
 
 const APP_SUBKEY: &str = "SOFTWARE\\VisualIdler";
@@ -60,9 +60,9 @@ impl RegistrySetting {
                     registry_name: entry.to_string(),
                     last_data: String::new(),
                 };
-                new_settings.update_local_data();
+                let _ = new_settings.update_local_data();
                 if new_settings.last_data.is_empty() {
-                    new_settings.set_registry_data(&SLEEP_TIME_SECONDS.to_string());
+                    let _ = new_settings.set_registry_data(&SLEEP_TIME_SECONDS.to_string());
                 }
                 new_settings
             }
@@ -73,9 +73,9 @@ impl RegistrySetting {
                     registry_name: entry.to_string(),
                     last_data: String::new(),
                 };
-                new_settings.update_local_data();
+                let _ = new_settings.update_local_data();
                 if new_settings.last_data.is_empty() {
-                    new_settings.set_registry_data(&current_time);
+                    let _ = new_settings.set_registry_data(&current_time);
                 }
                 new_settings
             }
@@ -85,9 +85,9 @@ impl RegistrySetting {
                     registry_name: entry.to_string(),
                     last_data: RegistryState::Disabled.to_string(),
                 };
-                new_settings.update_local_data();
+                let _ = new_settings.update_local_data();
                 if new_settings.last_data.is_empty() {
-                    new_settings.set_registry_data(&RegistryState::Disabled.to_string());
+                    let _ = new_settings.set_registry_data(&RegistryState::Disabled.to_string());
                 }
                 new_settings
             }
@@ -97,9 +97,9 @@ impl RegistrySetting {
                     registry_name: entry.to_string(),
                     last_data: RegistryState::Enabled.to_string(),
                 };
-                new_settings.update_local_data();
+                let _ = new_settings.update_local_data();
                 if new_settings.last_data.is_empty() {
-                    new_settings.set_registry_data(&RegistryState::Enabled.to_string());
+                    let _ = new_settings.set_registry_data(&RegistryState::Enabled.to_string());
                 }
                 new_settings
             }
@@ -109,9 +109,9 @@ impl RegistrySetting {
                     registry_name: entry.to_string(),
                     last_data: RegistryState::Disabled.to_string(),
                 };
-                new_settings.update_local_data();
+                let _ = new_settings.update_local_data();
                 if new_settings.last_data.is_empty() {
-                    new_settings.set_registry_data(&RegistryState::Disabled.to_string());
+                    let _ = new_settings.set_registry_data(&RegistryState::Disabled.to_string());
                 }
                 new_settings
             }
@@ -121,22 +121,22 @@ impl RegistrySetting {
                     registry_name: entry.to_string(),
                     last_data: RegistryState::Disabled.to_string(),
                 };
-                new_settings.update_local_data();
+                let _ = new_settings.update_local_data();
                 if new_settings.last_data.is_empty() {
-                    new_settings.set_registry_data(&"18:00".to_string());
+                    let _ = new_settings.set_registry_data(&"18:00".to_string());
                 }
                 new_settings
             }
         }
     }
 
-    pub fn update_local_data(&mut self) -> String {
+    pub fn update_local_data(&mut self) -> Result<String> {
         let app_key = match LOCAL_MACHINE.open(APP_SUBKEY) {
             Ok(e) => e,
             Err(err) => {
                 error!("Failed to open app key with err {}", err);
                 create_app_key();
-                return String::new();
+                return Err(err.into());
             }
         };
         let data: String = match app_key.get_string(&self.registry_name) {
@@ -149,21 +149,21 @@ impl RegistrySetting {
                     "Failed to get data from {}, with error {}",
                     &self.registry_name, err
                 );
-                self.set_registry_data(&self.last_data.clone());
-                return String::new();
+                self.set_registry_data(&self.last_data.clone())?;
+                return Err(err.into());
             }
         };
         self.last_data = data.clone();
-        data
+        Ok(data)
     }
 
-    pub fn set_registry_data(&mut self, new_data: &String) {
+    pub fn set_registry_data(&mut self, new_data: &String) -> Result<()> {
         let app_key = match LOCAL_MACHINE.create(APP_SUBKEY) {
             Ok(e) => e,
             Err(err) => {
                 error!("Failed to open app key: {} with err {}", APP_SUBKEY, err);
                 create_app_key();
-                return;
+                return Err(err.into());
             }
         };
         match app_key.set_string(&self.registry_name, new_data) {
@@ -176,18 +176,18 @@ impl RegistrySetting {
                     "Failed to set data from {}, with error {}",
                     self.registry_name, err
                 );
+                return Err(err.into());
             }
         };
+        Ok(())
     }
 }
 
 #[inline]
 fn create_app_key() {
-    std::thread::spawn(|| {
-        match LOCAL_MACHINE.create(APP_SUBKEY) {
-            Ok(_) => info!("Created {}", APP_SUBKEY),
-            Err(err) => error!("Failed to create {} with err: {}", APP_SUBKEY, err),
-        }
+    std::thread::spawn(|| match LOCAL_MACHINE.create(APP_SUBKEY) {
+        Ok(_) => info!("Created {}", APP_SUBKEY),
+        Err(err) => error!("Failed to create {} with err: {}", APP_SUBKEY, err),
     });
 }
 
