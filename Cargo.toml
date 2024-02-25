@@ -8,12 +8,12 @@ authors = ["ah"]
 edition = "2021"
 
 [workspace.dependencies]
-tauri = { version = "1.5.4" }
+tauri = { version = "1.6" }
 tauri-build = { version = "1.5.1", features = [] }
 log = "0.4.20"
 env_logger = "0.11.2"
-serde = { version = "1.0.196", features = ["derive"] }
-serde_json = "1.0.113"
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.114"
 
 [profile.release]
 panic = "abort"

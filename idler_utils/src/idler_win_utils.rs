@@ -162,7 +162,7 @@ pub fn spawn_window() -> Result<()> {
             None,
         );
         let guid = GUID::from(MONITOR_GUID);
-        match RegisterPowerSettingNotification(GetCurrentProcess(), addr_of!(guid), 0) {
+        match RegisterPowerSettingNotification(GetCurrentProcess(), addr_of!(guid), REGISTER_NOTIFICATION_FLAGS(0)) {
             Ok(_) => {
                 info!("Registered for power notifications")
             }

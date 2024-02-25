@@ -1,7 +1,7 @@
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use winreg::enums::*;
-use winreg::RegKey;
+
+use windows_registry::LOCAL_MACHINE;
 
 const APP_SUBKEY: &str = "SOFTWARE\\VisualIdler";
 const SLEEP_TIME_SECONDS: u64 = 5 * 60;
@@ -131,7 +131,7 @@ impl RegistrySetting {
     }
 
     pub fn update_local_data(&mut self) -> String {
-        let app_key: RegKey = match RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey(APP_SUBKEY) {
+        let app_key = match LOCAL_MACHINE.open(APP_SUBKEY) {
             Ok(e) => e,
             Err(err) => {
                 error!("Failed to open app key with err {}", err);
@@ -139,7 +139,7 @@ impl RegistrySetting {
                 return String::new();
             }
         };
-        let data: String = match app_key.get_value(&self.registry_name) {
+        let data: String = match app_key.get_string(&self.registry_name) {
             Ok(data) => {
                 debug!("Found data {:#?} in {}", data, self.registry_name);
                 data
@@ -158,7 +158,7 @@ impl RegistrySetting {
     }
 
     pub fn set_registry_data(&mut self, new_data: &String) {
-        let (app_key, _) = match RegKey::predef(HKEY_LOCAL_MACHINE).create_subkey(APP_SUBKEY) {
+        let app_key = match LOCAL_MACHINE.create(APP_SUBKEY) {
             Ok(e) => e,
             Err(err) => {
                 error!("Failed to open app key: {} with err {}", APP_SUBKEY, err);
@@ -166,7 +166,7 @@ impl RegistrySetting {
                 return;
             }
         };
-        match app_key.set_value(&self.registry_name, new_data) {
+        match app_key.set_string(&self.registry_name, new_data) {
             Ok(_) => {
                 info!("Set data {:#?} in {}", new_data, self.registry_name);
                 self.last_data = new_data.clone();
@@ -184,8 +184,7 @@ impl RegistrySetting {
 #[inline]
 fn create_app_key() {
     std::thread::spawn(|| {
-        let hkcu = RegKey::predef(HKEY_LOCAL_MACHINE);
-        match hkcu.create_subkey(APP_SUBKEY) {
+        match LOCAL_MACHINE.create(APP_SUBKEY) {
             Ok(_) => info!("Created {}", APP_SUBKEY),
             Err(err) => error!("Failed to create {} with err: {}", APP_SUBKEY, err),
         }
