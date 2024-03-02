@@ -1,5 +1,5 @@
 [workspace]
-members = ["smart_tray", "idler_utils"]   
+members = ["smart_tray", "idler_utils"]
 resolver = "2"
 
 [workspace.package]
@@ -9,15 +9,15 @@ edition = "2021"
 
 [workspace.dependencies]
 tauri = { version = "1.6" }
-tauri-build = { version = "1.5.1", features = [] }
-log = "0.4.20"
-env_logger = "0.11.2"
+tauri-build = { version = "1.5", features = [] }
+log = "0.4"
+env_logger = "0.11"
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.114"
-anyhow = "1.0.80"
+anyhow = "1.0"
 
 [profile.release]
 panic = "abort"
 codegen-units = 1
 lto = true
-strip = true 
+strip = true

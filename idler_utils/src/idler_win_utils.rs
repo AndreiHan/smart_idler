@@ -246,6 +246,7 @@ fn send_to_db() -> Result<()> {
 }
 
 pub fn idle_time() -> Result<()> {
+    debug!("Start idle time thread");
     let mut registry_interval =
         registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::ForceInterval);
     let mut registry_maintenance =

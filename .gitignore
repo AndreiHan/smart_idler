@@ -7,3 +7,4 @@ controller/report.json
 smart_tray/report.html
 smart_tray/report.json
 node_modules
+.prettierrc

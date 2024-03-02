@@ -85,7 +85,7 @@ pub fn get_state(state: State<AppState>, data: String) -> bool {
         "maintenance" => &state.maintenance,
         "startup" => &state.startup,
         _ => {
-            warn!("Found invalid data in request: {}", data);
+            warn!("Found invalid data in request: {:?}", state);
             return false;
         }
     };
@@ -110,7 +110,7 @@ pub fn set_registry_state(state: State<AppState>, data: String, wanted_status: b
         "maintenance" => &state.maintenance,
         "startup" => &state.startup,
         _ => {
-            warn!("Found incorrect data in request: {}", data);
+            warn!("Found incorrect data in request: {:?}", state);
             return;
         }
     };

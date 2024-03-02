@@ -23,11 +23,11 @@ async function refresh_table_element(table_element) {
   await sleep(250);
   if (table_element[2] != undefined) {
     invoke(table_element[1], { data: table_element[2] }).then(
-      (input) => (document.getElementById(table_element[0]).innerText = input)
+      (input) => (document.getElementById(table_element[0]).innerText = input),
     );
   } else {
     invoke(table_element[1]).then(
-      (input) => (document.getElementById(table_element[0]).innerText = input)
+      (input) => (document.getElementById(table_element[0]).innerText = input),
     );
   }
 }
@@ -48,7 +48,7 @@ async function refresh_checkbox(checkbox_element) {
   document.getElementById(checkbox_element[0]).checked = false;
   await sleep(250);
   invoke("get_state", { data: checkbox_element[1] }).then(
-    (input) => (document.getElementById(checkbox_element[0]).checked = input)
+    (input) => (document.getElementById(checkbox_element[0]).checked = input),
   );
 }
 
@@ -61,10 +61,10 @@ window.addEventListener("DOMContentLoaded", () => {
 
   //-Shutdown load
   invoke("get_shutdown_clock", {}).then(
-    (input) => (document.getElementById("timed-input").value = input)
+    (input) => (document.getElementById("timed-input").value = input),
   );
   invoke("get_shutdown_state", {}).then(
-    (input) => (document.getElementById("timed-stop").checked = input)
+    (input) => (document.getElementById("timed-stop").checked = input),
   );
 });
 
@@ -73,7 +73,7 @@ window.addEventListener("DOMContentLoaded", () => {
 //-Auto shutdown
 let time_input = document.getElementById("timed-input");
 time_input.addEventListener("change", () => {
-  var timeValue = event.target.value;
+  var timeValue = target.value;
   console.log("Time value: ", timeValue);
   invoke("set_shutdown", { hour: timeValue });
   document.getElementById("timed-stop").checked = true;

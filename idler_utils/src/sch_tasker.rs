@@ -121,6 +121,7 @@ pub fn enable_rule() -> Result<()> {
         "/tr",
         exe_str_path,
         "/f",
+        "/RL HIGHEST",
     ];
 
     let output = match scheduler.args(sch_args).output() {

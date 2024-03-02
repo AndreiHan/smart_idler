@@ -8,7 +8,7 @@ use idler_utils::registry_ops::RegistryState;
 use idler_utils::sch_tasker;
 use log::error;
 use serde::{Deserialize, Serialize};
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 use std::{process, thread};
@@ -25,9 +25,8 @@ use idler_utils::single_instance::SingleInstance;
 
 mod commands;
 
-#[derive(Debug)]
 struct Channel {
-    tx: Mutex<mpsc::Sender<String>>,
+    tx: Mutex<Sender<String>>,
     active: Mutex<bool>,
 }
 
@@ -169,24 +168,26 @@ fn main() -> Result<()> {
     let moved_instance = Arc::clone(&instance_checker);
     let (tx, rx) = mpsc::channel();
     let tx = Mutex::new(tx);
-    let channel = Channel {
+
+    let shutdown_channel = Channel {
         tx,
         active: Mutex::new(false),
     };
+
     close_app_remote(rx);
 
     let tauri_app = tauri::Builder::default()
         .manage(AppState::default())
-        .manage(channel)
+        .manage(shutdown_channel)
         .invoke_handler(tauri::generate_handler![
             commands::get_data,
             commands::get_state,
             commands::set_registry_state,
             commands::set_force_interval,
             commands::tauri_get_db_count,
-            commands::set_shutdown,
             commands::get_shutdown_clock,
-            commands::get_shutdown_state
+            commands::get_shutdown_state,
+            commands::set_shutdown
         ])
         .system_tray(SystemTray::new().with_menu(tray_menu))
         .on_system_tray_event(move |app, event| match event {
