@@ -4,12 +4,18 @@ use idler_utils::registry_ops::RegistryState;
 use idler_utils::registry_ops::{RegistryEntries, RegistrySetting};
 use tauri::State;
 
+use crate::app_controller::ControllerChannel;
 use crate::AppState;
-use crate::Channel;
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn get_shutdown_state(channel: State<Channel>) -> bool {
-    *channel.active.lock().unwrap()
+pub fn get_shutdown_state(channel: State<ControllerChannel>) -> bool {
+    match channel.active.lock() {
+        Ok(val) => *val,
+        Err(err) => {
+            error!("Failed to lock channel.active with err: {}", err);
+            false
+        }
+    }
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -27,7 +33,11 @@ pub fn get_shutdown_clock(state: State<AppState>) -> String {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn set_shutdown(channel_state: State<Channel>, app_state: State<AppState>, hour: String) {
+pub fn set_shutdown(
+    channel_state: State<ControllerChannel>,
+    app_state: State<AppState>,
+    hour: String,
+) {
     let tx = match channel_state.tx.lock() {
         Ok(val) => val,
         Err(err) => {
@@ -142,9 +152,12 @@ pub fn tauri_get_db_count() -> Result<String, ()> {
     {
         return Ok(String::from("Disabled"));
     }
-    let db = db_ops::RobotDatabase::new();
-    if db.is_none() {
-        return Err(());
-    }
-    Ok(db.unwrap().number_of_items.to_string())
+    let db = match db_ops::RobotDatabase::new() {
+        Some(db) => db,
+        None => {
+            error!("Failed to get db with");
+            return Err(());
+        }
+    };
+    Ok(db.number_of_items.to_string())
 }

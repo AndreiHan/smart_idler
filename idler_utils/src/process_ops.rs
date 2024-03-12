@@ -42,7 +42,12 @@ pub fn kill_app(app: &AppProcess, wait_to_finish: bool) -> Result<()> {
     let current_app = *app;
     let kill_handle = std::thread::spawn(move || {
         let s = get_system_exe();
-        if let Some(process) = s.process(Pid::from(get_pid(&current_app).unwrap() as usize)) {
+        let pid = get_pid(&current_app).unwrap_or(0);
+        if pid == 0 {
+            error!("No pid found for {:?}", &current_app);
+            return Err(anyhow!("pid lookup failed"));
+        }
+        if let Some(process) = s.process(Pid::from(pid as usize)) {
             if process.kill_with(Signal::Kill).is_none() {
                 error!("This signal isn't supported on this platform");
                 return Err(anyhow!("Unsupported platform for kill signal"));

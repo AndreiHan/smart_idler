@@ -3,32 +3,24 @@
 extern crate log;
 
 use anyhow::Result;
-use chrono::{Local, NaiveTime};
 use idler_utils::registry_ops::RegistryState;
-use idler_utils::sch_tasker;
+use idler_utils::{sch_tasker, single_instance};
 use log::error;
 use serde::{Deserialize, Serialize};
-use std::sync::mpsc::{Receiver, Sender, TryRecvError};
+use std::process::exit;
 use std::sync::{mpsc, Arc, Mutex};
-use std::time::Duration;
-use std::{process, thread};
+use std::thread;
 use tauri::api::notification::Notification;
-use tauri::{
-    CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem,
-    UserAttentionType,
-};
+use tauri::{AppHandle, SystemTrayEvent};
 
 use idler_utils::idler_win_utils;
 use idler_utils::process_ops;
 use idler_utils::registry_ops::{RegistryEntries, RegistrySetting};
 use idler_utils::single_instance::SingleInstance;
 
+mod app_controller;
 mod commands;
-
-struct Channel {
-    tx: Mutex<Sender<String>>,
-    active: Mutex<bool>,
-}
+mod tray;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppState {
@@ -53,78 +45,27 @@ impl Default for AppState {
     }
 }
 
-fn build_controller(app: &tauri::AppHandle) {
-    match app.get_window("main") {
-        Some(win) => {
-            info!("Found 'main' window setting focus");
-            let _ = win.set_focus();
-            let _ = win.request_user_attention(Some(UserAttentionType::Informational));
-            return;
-        }
-        None => info!("Could not find 'main' window, launching it"),
-    };
-
-    let current_app = app.clone();
-    thread::spawn(move || {
-        match tauri::WindowBuilder::new(&current_app, "main", tauri::WindowUrl::App("ui".into()))
-            .fullscreen(false)
-            .resizable(false)
-            .title("Controller")
-            .center()
-            .inner_size(900.into(), 425.into())
-            .build()
-        {
-            Ok(handle) => {
-                let _ = handle.set_focus();
-                let _ = handle.request_user_attention(Some(UserAttentionType::Informational));
-            }
-            Err(e) => error!("Failed to create controller app, err: {}", e),
-        }
-    });
-}
-
-fn close_app_remote(rx: Receiver<String>) {
-    thread::spawn(move || {
-        let mut _sender: Option<mpsc::Sender<()>> = None;
-        loop {
-            match rx.recv() {
-                Ok(hour) => {
-                    debug!("Received time: {:?}", hour);
-                    let received_time = match NaiveTime::parse_from_str(&hour, "%H:%M") {
-                        Ok(val) => val,
-                        Err(_) => {
-                            info!("Received non time value, {}. Ignorring", hour);
-                            _sender = None;
-                            continue;
-                        }
-                    };
-                    let (sen, receiver) = mpsc::channel::<()>();
-                    _sender = Some(sen);
-                    thread::spawn(move || loop {
-                        let diff = received_time - Local::now().time();
-                        if diff.num_seconds() <= 0 {
-                            warn!("Shutdown");
-                            idler_win_utils::ExecState::stop();
-                            process::exit(0);
-                        }
-                        thread::sleep(Duration::from_millis(500));
-                        match receiver.try_recv() {
-                            Ok(_) | Err(TryRecvError::Disconnected) => {
-                                info!("Cancelling task for: {}", received_time);
-                                break;
-                            }
-                            Err(TryRecvError::Empty) => {}
-                        }
-                    });
-                    thread::sleep(Duration::from_millis(500));
-                }
-                Err(err) => {
-                    debug!("Received err: {}", err);
-                    return;
-                }
+fn handle_system_tray_event(
+    app: &AppHandle,
+    event: SystemTrayEvent,
+    moved_instance: Arc<SingleInstance>,
+) {
+    match event {
+        SystemTrayEvent::MenuItemClick { id, .. } => {
+            let _item_handle = app.tray_handle().get_item(&id);
+            let id = id.as_str();
+            if id == tray::IdlerMenuItems::Show.to_string() {
+                app_controller::build_controller(app);
+            } else if id == tray::IdlerMenuItems::Quit.to_string() {
+                idler_win_utils::ExecState::stop();
+                let _ = moved_instance.exit();
+                std::process::exit(0);
             }
         }
-    });
+        SystemTrayEvent::LeftClick { .. } => app_controller::build_controller(app),
+        SystemTrayEvent::DoubleClick { .. } => app_controller::build_controller(app),
+        _ => {}
+    }
 }
 
 fn main() -> Result<()> {
@@ -136,13 +77,19 @@ fn main() -> Result<()> {
 
     let instance_checker = Arc::new(SingleInstance::new(process_ops::AppProcess::SysTray));
     match instance_checker.check() {
-        Ok(_) => info!("Performed single instance check"),
-        Err(_) => error!("Failed to perform single instance check"),
+        Ok(status) => {
+            if status == single_instance::CheckStatus::Failed {
+                exit(1);
+            }
+        }
+        Err(err) => error!("Failed to perform single instance check, err {}", err),
     }
     idler_win_utils::ExecState::start();
 
     let _ = RegistrySetting::new(RegistryEntries::LastRobotInput);
-    thread::spawn(move || idler_win_utils::idle_time);
+    thread::spawn(move || {
+        idler_win_utils::mock_idle_loop()
+    });
 
     thread::spawn(move || {
         let _ = idler_win_utils::spawn_window();
@@ -158,27 +105,17 @@ fn main() -> Result<()> {
         }
     });
 
-    let quit = CustomMenuItem::new("quit".to_string(), "Quit");
-    let show = CustomMenuItem::new("show".to_string(), "Show");
-    let tray_menu = SystemTrayMenu::new()
-        .add_item(show)
-        .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(quit);
-
-    let moved_instance = Arc::clone(&instance_checker);
     let (tx, rx) = mpsc::channel();
     let tx = Mutex::new(tx);
+    app_controller::close_app_remote(rx);
 
-    let shutdown_channel = Channel {
-        tx,
-        active: Mutex::new(false),
-    };
-
-    close_app_remote(rx);
-
+    let moved_instance = Arc::clone(&instance_checker);
     let tauri_app = tauri::Builder::default()
         .manage(AppState::default())
-        .manage(shutdown_channel)
+        .manage(app_controller::ControllerChannel {
+            tx,
+            active: Mutex::new(false),
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_data,
             commands::get_state,
@@ -189,26 +126,9 @@ fn main() -> Result<()> {
             commands::get_shutdown_state,
             commands::set_shutdown
         ])
-        .system_tray(SystemTray::new().with_menu(tray_menu))
-        .on_system_tray_event(move |app, event| match event {
-            SystemTrayEvent::MenuItemClick { id, .. } => {
-                let _item_handle = app.tray_handle().get_item(&id);
-                match id.as_str() {
-                    "show" => {
-                        build_controller(app);
-                    }
-                    "quit" => {
-                        idler_win_utils::ExecState::stop();
-                        let _ = moved_instance.exit();
-                        std::process::exit(0);
-                    }
-                    _ => {}
-                }
-            }
-            SystemTrayEvent::LeftClick { .. } => build_controller(app),
-
-            SystemTrayEvent::DoubleClick { .. } => build_controller(app),
-            _ => {}
+        .system_tray(tray::get_tray_menu())
+        .on_system_tray_event(move |app, event| {
+            handle_system_tray_event(app, event, moved_instance.clone())
         })
         .build(tauri::generate_context!("tauri.conf.json"));
 

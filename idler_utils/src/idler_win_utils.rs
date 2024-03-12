@@ -245,7 +245,7 @@ fn send_to_db() -> Result<()> {
     Ok(())
 }
 
-pub fn idle_time() -> Result<()> {
+pub fn mock_idle_loop() -> Result<()> {
     debug!("Start idle time thread");
     let mut registry_interval =
         registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::ForceInterval);
