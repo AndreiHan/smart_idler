@@ -245,7 +245,7 @@ fn send_to_db() -> Result<()> {
     Ok(())
 }
 
-pub fn mock_idle_loop() -> Result<()> {
+pub fn idle_loop() -> Result<()> {
     debug!("Start idle time thread");
     let mut registry_interval =
         registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::ForceInterval);
@@ -293,4 +293,18 @@ pub fn mock_idle_loop() -> Result<()> {
             win_mnts::Maintenance::change_state(&win_mnts::Commands::Stop);
         }
     }
+}
+
+pub fn spawn_idle_threads() {
+    thread::spawn(move || loop {
+        let status = idle_loop();
+        if status.is_err() {
+            error!("Failed to run idle loop with err: {:?}", status);
+        }
+        thread::sleep(Duration::from_secs(60));
+    });
+
+    thread::spawn(move || {
+        let _ = spawn_window();
+    });
 }

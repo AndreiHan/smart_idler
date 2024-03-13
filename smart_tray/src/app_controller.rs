@@ -50,42 +50,50 @@ pub(crate) fn close_app_remote(rx: Receiver<String>) {
     thread::spawn(move || {
         let mut _sender: Option<mpsc::Sender<()>> = None;
         loop {
-            match rx.recv() {
-                Ok(hour) => {
-                    debug!("Received time: {:?}", hour);
-                    let received_time = match NaiveTime::parse_from_str(&hour, "%H:%M") {
-                        Ok(val) => val,
-                        Err(_) => {
-                            info!("Received non time value, {}. Ignorring", hour);
-                            _sender = None;
-                            continue;
-                        }
-                    };
-                    let (sen, receiver) = mpsc::channel::<()>();
-                    _sender = Some(sen);
-                    thread::spawn(move || loop {
-                        let diff = received_time - Local::now().time();
-                        if diff.num_seconds() <= 0 {
-                            warn!("Shutdown");
-                            idler_win_utils::ExecState::stop();
-                            process::exit(0);
-                        }
-                        thread::sleep(Duration::from_millis(500));
-                        match receiver.try_recv() {
-                            Ok(_) | Err(TryRecvError::Disconnected) => {
-                                info!("Cancelling task for: {}", received_time);
-                                break;
-                            }
-                            Err(TryRecvError::Empty) => {}
-                        }
-                    });
-                    thread::sleep(Duration::from_millis(500));
-                }
+            let hour = match rx.recv() {
+                Ok(val) => val,
                 Err(err) => {
-                    debug!("Received err: {}", err);
+                    info!("Received err: {}", err);
                     return;
                 }
-            }
+            };
+            debug!("Received time: {:?}", hour);
+            let received_time = match NaiveTime::parse_from_str(&hour, "%H:%M") {
+                Ok(val) => val,
+                Err(_) => {
+                    info!("Received non time value, {}. Ignorring", hour);
+                    _sender = None;
+                    continue;
+                }
+            };
+            let (sen, receiver) = mpsc::channel::<()>();
+            _sender = Some(sen);
+
+            thread::spawn(move || loop {
+                let now = Local::now().time();
+                let diff = match received_time.signed_duration_since(now).to_std() {
+                    Ok(d) => d,
+                    Err(err) => {
+                        error!("Received negative time, err: {}", err);
+                        break;
+                    }
+                };
+
+                if diff.as_secs() <= 0 {
+                    warn!("Shutdown");
+                    idler_win_utils::ExecState::stop();
+                    process::exit(0);
+                }
+                thread::sleep(Duration::from_millis(500));
+                match receiver.try_recv() {
+                    Ok(_) | Err(TryRecvError::Disconnected) => {
+                        info!("Cancelling task for: {}", received_time);
+                        break;
+                    }
+                    Err(TryRecvError::Empty) => {}
+                }
+            });
+            thread::sleep(Duration::from_millis(500));
         }
     });
 }

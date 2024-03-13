@@ -73,7 +73,7 @@ window.addEventListener("DOMContentLoaded", () => {
 //-Auto shutdown
 let time_input = document.getElementById("timed-input");
 time_input.addEventListener("change", () => {
-  var timeValue = target.value;
+  var timeValue = time_input.value;
   console.log("Time value: ", timeValue);
   invoke("set_shutdown", { hour: timeValue });
   document.getElementById("timed-stop").checked = true;

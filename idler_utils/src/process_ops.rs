@@ -28,12 +28,14 @@ pub fn restart_app(app: &AppProcess) {
     let current_app = *app;
     std::thread::spawn(move || {
         info!("Restarting app: {:?}", &current_app);
-        let app_pid = get_pid(&current_app);
-        if app_pid.is_none() {
-            let _ = open_app(&current_app, false);
-        } else {
-            let _ = kill_app(&current_app, true);
-            let _ = open_app(&current_app, false);
+        match get_pid(&current_app) {
+            Some(_) => {
+                let _ = kill_app(&current_app, true);
+                let _ = open_app(&current_app, false);
+            }
+            None => {
+                let _ = open_app(&current_app, false);
+            }
         }
     });
 }

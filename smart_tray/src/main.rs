@@ -11,7 +11,6 @@ use std::process::exit;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use tauri::api::notification::Notification;
-use tauri::{AppHandle, SystemTrayEvent};
 
 use idler_utils::idler_win_utils;
 use idler_utils::process_ops;
@@ -45,29 +44,6 @@ impl Default for AppState {
     }
 }
 
-fn handle_system_tray_event(
-    app: &AppHandle,
-    event: SystemTrayEvent,
-    moved_instance: Arc<SingleInstance>,
-) {
-    match event {
-        SystemTrayEvent::MenuItemClick { id, .. } => {
-            let _item_handle = app.tray_handle().get_item(&id);
-            let id = id.as_str();
-            if id == tray::IdlerMenuItems::Show.to_string() {
-                app_controller::build_controller(app);
-            } else if id == tray::IdlerMenuItems::Quit.to_string() {
-                idler_win_utils::ExecState::stop();
-                let _ = moved_instance.exit();
-                std::process::exit(0);
-            }
-        }
-        SystemTrayEvent::LeftClick { .. } => app_controller::build_controller(app),
-        SystemTrayEvent::DoubleClick { .. } => app_controller::build_controller(app),
-        _ => {}
-    }
-}
-
 fn main() -> Result<()> {
     if cfg!(debug_assertions) {
         env_logger::init_from_env(
@@ -84,17 +60,9 @@ fn main() -> Result<()> {
         }
         Err(err) => error!("Failed to perform single instance check, err {}", err),
     }
+
     idler_win_utils::ExecState::start();
-
-    let _ = RegistrySetting::new(RegistryEntries::LastRobotInput);
-    thread::spawn(move || {
-        idler_win_utils::mock_idle_loop()
-    });
-
-    thread::spawn(move || {
-        let _ = idler_win_utils::spawn_window();
-    });
-
+    idler_win_utils::spawn_idle_threads();
     thread::spawn(move || {
         if RegistrySetting::new(RegistryEntries::StartWithWindows).last_data
             == RegistryState::Enabled.to_string()
@@ -128,7 +96,7 @@ fn main() -> Result<()> {
         ])
         .system_tray(tray::get_tray_menu())
         .on_system_tray_event(move |app, event| {
-            handle_system_tray_event(app, event, moved_instance.clone())
+            tray::handle_system_tray_event(app, event, moved_instance.clone())
         })
         .build(tauri::generate_context!("tauri.conf.json"));
 
