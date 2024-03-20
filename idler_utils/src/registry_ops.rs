@@ -3,10 +3,10 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use windows_registry::LOCAL_MACHINE;
 
-const APP_SUBKEY: &str = "SOFTWARE\\VisualIdler";
+const APP_SUBKEY: &str = "SOFTWARE\\SmartIdler";
 const SLEEP_TIME_SECONDS: u64 = 5 * 60;
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum RegistryState {
     Enabled,
     Disabled,
@@ -15,9 +15,16 @@ pub enum RegistryState {
 impl ToString for RegistryState {
     fn to_string(&self) -> String {
         match self {
-            RegistryState::Enabled => String::from("enabled"),
-            RegistryState::Disabled => String::from("disabled"),
+            RegistryState::Enabled => "enabled".to_string(),
+            RegistryState::Disabled => "disabled".to_string(),
         }
+    }
+}
+
+#[allow(clippy::from_over_into)]
+impl Into<String> for RegistryState {
+    fn into(self) -> String {
+        self.to_string()
     }
 }
 
@@ -87,7 +94,7 @@ impl RegistrySetting {
                 };
                 let _ = new_settings.update_local_data();
                 if new_settings.last_data.is_empty() {
-                    let _ = new_settings.set_registry_data(&RegistryState::Disabled.to_string());
+                    let _ = new_settings.set_registry_data(RegistryState::Disabled);
                 }
                 new_settings
             }
@@ -99,7 +106,7 @@ impl RegistrySetting {
                 };
                 let _ = new_settings.update_local_data();
                 if new_settings.last_data.is_empty() {
-                    let _ = new_settings.set_registry_data(&RegistryState::Enabled.to_string());
+                    let _ = new_settings.set_registry_data(RegistryState::Enabled);
                 }
                 new_settings
             }
@@ -111,7 +118,7 @@ impl RegistrySetting {
                 };
                 let _ = new_settings.update_local_data();
                 if new_settings.last_data.is_empty() {
-                    let _ = new_settings.set_registry_data(&RegistryState::Disabled.to_string());
+                    let _ = new_settings.set_registry_data(RegistryState::Disabled);
                 }
                 new_settings
             }
@@ -123,7 +130,7 @@ impl RegistrySetting {
                 };
                 let _ = new_settings.update_local_data();
                 if new_settings.last_data.is_empty() {
-                    let _ = new_settings.set_registry_data(&"18:00".to_string());
+                    let _ = new_settings.set_registry_data("18:00");
                 }
                 new_settings
             }
@@ -157,7 +164,8 @@ impl RegistrySetting {
         Ok(data)
     }
 
-    pub fn set_registry_data(&mut self, new_data: &String) -> Result<()> {
+    pub fn set_registry_data<T: Into<String>>(&mut self, new_data: T) -> Result<()> {
+        let new_data = new_data.into();
         let app_key = match LOCAL_MACHINE.create(APP_SUBKEY) {
             Ok(e) => e,
             Err(err) => {
@@ -166,10 +174,10 @@ impl RegistrySetting {
                 return Err(err.into());
             }
         };
-        match app_key.set_string(&self.registry_name, new_data) {
+        match app_key.set_string(&self.registry_name, &new_data) {
             Ok(_) => {
                 info!("Set data {:#?} in {}", new_data, self.registry_name);
-                self.last_data = new_data.clone();
+                self.last_data = new_data;
             }
             Err(err) => {
                 error!(

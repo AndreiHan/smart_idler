@@ -90,7 +90,6 @@ pub fn enable_rule() -> Result<()> {
             path
         }
     };
-    delete_rule(Some(&schtasks_path))?;
     let mut scheduler = Command::new(schtasks_path);
 
     let exe_path = match current_exe() {
@@ -121,7 +120,8 @@ pub fn enable_rule() -> Result<()> {
         "/tr",
         exe_str_path,
         "/f",
-        "/RL HIGHEST",
+        "/RL",
+        "HIGHEST",
     ];
 
     let output = match scheduler.args(sch_args).output() {

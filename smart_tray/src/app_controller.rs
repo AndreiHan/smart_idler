@@ -79,7 +79,7 @@ pub(crate) fn close_app_remote(rx: Receiver<String>) {
                     }
                 };
 
-                if diff.as_secs() <= 0 {
+                if diff.as_secs() == 0 {
                     warn!("Shutdown");
                     idler_win_utils::ExecState::stop();
                     process::exit(0);

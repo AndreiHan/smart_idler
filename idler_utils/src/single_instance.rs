@@ -77,7 +77,6 @@ fn check_existing_file(file_path: &PathBuf, app: &AppProcess) -> Result<CheckSta
     }
 }
 
-#[inline]
 fn create_lock_file(file_path: &PathBuf) -> Result<()> {
     let mut file = File::create(file_path)?;
 

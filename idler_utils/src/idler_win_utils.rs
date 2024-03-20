@@ -239,7 +239,8 @@ fn send_to_db() -> Result<()> {
     db.insert_to_db(&db_ops::RobotInput {
         input_time: registry_ops::get_current_time(),
         interval: registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::ForceInterval)
-            .last_data,
+            .last_data
+            .to_string(),
     })?;
     info!("db items: {}", db.number_of_items);
     Ok(())
@@ -278,9 +279,7 @@ pub fn idle_loop() -> Result<()> {
         }
 
         let _ = registry_maintenance.update_local_data();
-        if registry_maintenance.last_data.as_str()
-            == registry_ops::RegistryState::Enabled.to_string()
-        {
+        if registry_maintenance.last_data == registry_ops::RegistryState::Enabled.to_string() {
             win_mnts::Maintenance::change_state(&win_mnts::Commands::Start);
             start_maintenance = true;
         } else {

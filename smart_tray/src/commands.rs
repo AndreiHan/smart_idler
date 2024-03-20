@@ -29,14 +29,14 @@ pub fn get_shutdown_clock(state: State<AppState>) -> String {
     };
 
     let _ = setting.update_local_data();
-    setting.last_data.clone()
+    setting.last_data.to_string()
 }
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn set_shutdown(
     channel_state: State<ControllerChannel>,
     app_state: State<AppState>,
-    hour: String,
+    hour: &str,
 ) {
     let tx = match channel_state.tx.lock() {
         Ok(val) => val,
@@ -46,7 +46,7 @@ pub fn set_shutdown(
         }
     };
     debug!("Sent shutdown date:, {}", hour);
-    let _ = tx.send(hour.clone());
+    let _ = tx.send(hour.to_string());
 
     let mut active = match channel_state.active.lock() {
         Ok(val) => val,
@@ -64,12 +64,12 @@ pub fn set_shutdown(
             return;
         }
     };
-    let _ = setting.set_registry_data(&hour);
+    let _ = setting.set_registry_data(hour);
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn get_data(state: State<AppState>, data: String) -> String {
-    let setting = match data.as_str() {
+pub fn get_data(state: State<AppState>, data: &str) -> String {
+    let setting = match data {
         "force_interval" => &state.force_interval,
         "robot_input" => &state.robot_input,
         _ => {
@@ -85,12 +85,12 @@ pub fn get_data(state: State<AppState>, data: String) -> String {
         }
     };
     let _ = setting.update_local_data();
-    setting.last_data.clone()
+    setting.last_data.to_string()
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn get_state(state: State<AppState>, data: String) -> bool {
-    let setting = match data.as_str() {
+pub fn get_state(state: State<AppState>, data: &str) -> bool {
+    let setting = match data {
         "logging" => &state.logging,
         "maintenance" => &state.maintenance,
         "startup" => &state.startup,
@@ -114,8 +114,8 @@ pub fn get_state(state: State<AppState>, data: String) -> bool {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn set_registry_state(state: State<AppState>, data: String, wanted_status: bool) {
-    let setting = match data.as_str() {
+pub fn set_registry_state(state: State<AppState>, data: &str, wanted_status: bool) {
+    let setting = match data {
         "logging" => &state.logging,
         "maintenance" => &state.maintenance,
         "startup" => &state.startup,
@@ -140,9 +140,9 @@ pub fn set_registry_state(state: State<AppState>, data: String, wanted_status: b
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn set_force_interval(interval: String) {
+pub fn set_force_interval(interval: &str) {
     let mut setting = RegistrySetting::new(RegistryEntries::ForceInterval);
-    let _ = setting.set_registry_data(&interval);
+    let _ = setting.set_registry_data(interval);
 }
 
 #[tauri::command(rename_all = "snake_case")]
