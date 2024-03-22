@@ -3,13 +3,34 @@ use std::mem::size_of_val;
 use std::ptr::{addr_of, addr_of_mut};
 use std::thread;
 use std::time::Duration;
+use windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS;
 
 use windows::{
-    core::*,
+    core::{s, GUID},
     Win32::{
-        Foundation::*,
-        System::{LibraryLoader::*, Power::*, SystemInformation::*, Threading::*},
-        UI::{Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
+        Foundation::{GetLastError, BOOL, HWND, LPARAM, LRESULT, WPARAM},
+        System::{
+            LibraryLoader::GetModuleHandleA,
+            Power::{
+                RegisterPowerSettingNotification, SetThreadExecutionState, ES_CONTINUOUS,
+                ES_DISPLAY_REQUIRED, ES_SYSTEM_REQUIRED, POWERBROADCAST_SETTING,
+            },
+            SystemInformation::GetTickCount64,
+            Threading::GetCurrentProcess,
+        },
+        UI::{
+            Input::KeyboardAndMouse::{
+                GetLastInputInfo, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE,
+                KEYBDINPUT, KEYEVENTF_KEYUP, LASTINPUTINFO, MOUSEEVENTF_WHEEL, MOUSEINPUT,
+                VK_ESCAPE,
+            },
+            WindowsAndMessaging::{
+                CreateWindowExA, DefWindowProcA, DispatchMessageA, GetMessageA, LoadCursorW,
+                RegisterClassA, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, IDC_ARROW, MSG,
+                PBT_APMQUERYSUSPEND, REGISTER_NOTIFICATION_FLAGS, WINDOW_EX_STYLE,
+                WM_POWERBROADCAST, WNDCLASSA, WS_OVERLAPPEDWINDOW,
+            },
+        },
     },
 };
 
@@ -47,7 +68,7 @@ fn send_key_input() {
             ki: KEYBDINPUT {
                 wVk: VK_ESCAPE,
                 wScan: 1,
-                dwFlags: Default::default(),
+                dwFlags: KEYBD_EVENT_FLAGS::default(),
                 time: 0,
                 dwExtraInfo: 0,
             },
@@ -110,7 +131,7 @@ fn send_mouse_input(wheel_movement: i32) {
 fn send_mixed_input() {
     let mut log_input: bool = false;
     let registry_data =
-        registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::LogStatistics).last_data;
+        registry_ops::RegistrySetting::new(&registry_ops::RegistryEntries::LogStatistics).last_data;
     if registry_data == registry_ops::RegistryState::Enabled.to_string() {
         log_input = true;
     }
@@ -118,13 +139,13 @@ fn send_mixed_input() {
     if log_input {
         let _ = send_to_db();
     } else {
-        debug!("Did not log input => Logging to db is disabled")
+        debug!("Did not log input => Logging to db is disabled");
     }
 
     send_mouse_input(1);
     send_key_input();
     let local_time = registry_ops::get_current_time();
-    let _ = registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::LastRobotInput)
+    let _ = registry_ops::RegistrySetting::new(&registry_ops::RegistryEntries::LastRobotInput)
         .set_registry_data(&local_time);
 }
 
@@ -169,10 +190,10 @@ pub fn spawn_window() -> Result<()> {
             REGISTER_NOTIFICATION_FLAGS(0),
         ) {
             Ok(_) => {
-                info!("Registered for power notifications")
+                info!("Registered for power notifications");
             }
             Err(_) => {
-                error!("Could not register for power notifications")
+                error!("Could not register for power notifications");
             }
         }
 
@@ -201,7 +222,7 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
                     if st.PowerSetting == guid && st.Data == [0] {
                         thread::spawn(|| send_mixed_input);
                         let _ = registry_ops::RegistrySetting::new(
-                            registry_ops::RegistryEntries::LastRobotInput,
+                            &registry_ops::RegistryEntries::LastRobotInput,
                         )
                         .set_registry_data(&registry_ops::get_current_time());
                     }
@@ -229,7 +250,7 @@ fn get_last_input() -> Option<u64> {
             return None;
         }
         let total_ticks = GetTickCount64();
-        Some(Duration::from_millis(total_ticks - last_input.dwTime as u64).as_secs())
+        Some(Duration::from_millis(total_ticks - u64::from(last_input.dwTime)).as_secs())
     }
 }
 
@@ -238,7 +259,7 @@ fn send_to_db() -> Result<()> {
 
     db.insert_to_db(&db_ops::RobotInput {
         input_time: registry_ops::get_current_time(),
-        interval: registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::ForceInterval)
+        interval: registry_ops::RegistrySetting::new(&registry_ops::RegistryEntries::ForceInterval)
             .last_data
             .to_string(),
     })?;
@@ -249,9 +270,9 @@ fn send_to_db() -> Result<()> {
 pub fn idle_loop() -> Result<()> {
     debug!("Start idle time thread");
     let mut registry_interval =
-        registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::ForceInterval);
+        registry_ops::RegistrySetting::new(&registry_ops::RegistryEntries::ForceInterval);
     let mut registry_maintenance =
-        registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::StartMaintenance);
+        registry_ops::RegistrySetting::new(&registry_ops::RegistryEntries::StartMaintenance);
 
     let mut sleep_rotations = 0;
     let mut start_maintenance: bool;

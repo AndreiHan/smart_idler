@@ -34,12 +34,12 @@ pub struct AppState {
 impl Default for AppState {
     fn default() -> Self {
         AppState {
-            force_interval: Mutex::new(RegistrySetting::new(RegistryEntries::ForceInterval)),
-            robot_input: Mutex::new(RegistrySetting::new(RegistryEntries::LastRobotInput)),
-            logging: Mutex::new(RegistrySetting::new(RegistryEntries::LogStatistics)),
-            maintenance: Mutex::new(RegistrySetting::new(RegistryEntries::StartMaintenance)),
-            startup: Mutex::new(RegistrySetting::new(RegistryEntries::StartWithWindows)),
-            shutdown: Mutex::new(RegistrySetting::new(RegistryEntries::ShutdownTime)),
+            force_interval: Mutex::new(RegistrySetting::new(&RegistryEntries::ForceInterval)),
+            robot_input: Mutex::new(RegistrySetting::new(&RegistryEntries::LastRobotInput)),
+            logging: Mutex::new(RegistrySetting::new(&RegistryEntries::LogStatistics)),
+            maintenance: Mutex::new(RegistrySetting::new(&RegistryEntries::StartMaintenance)),
+            startup: Mutex::new(RegistrySetting::new(&RegistryEntries::StartWithWindows)),
+            shutdown: Mutex::new(RegistrySetting::new(&RegistryEntries::ShutdownTime)),
         }
     }
 }
@@ -64,7 +64,7 @@ fn main() -> Result<()> {
     idler_win_utils::ExecState::start();
     idler_win_utils::spawn_idle_threads();
     thread::spawn(move || {
-        if RegistrySetting::new(RegistryEntries::StartWithWindows).last_data
+        if RegistrySetting::new(&RegistryEntries::StartWithWindows).last_data
             == RegistryState::Enabled.to_string()
         {
             sch_tasker::enable_rule()
@@ -96,7 +96,7 @@ fn main() -> Result<()> {
         ])
         .system_tray(tray::get_tray_menu())
         .on_system_tray_event(move |app, event| {
-            tray::handle_system_tray_event(app, event, moved_instance.clone())
+            tray::handle_system_tray_event(app, event, &moved_instance.clone());
         })
         .build(tauri::generate_context!("tauri.conf.json"));
 

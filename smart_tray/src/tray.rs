@@ -45,7 +45,7 @@ pub fn get_tray_menu() -> SystemTray {
 pub(crate) fn handle_system_tray_event(
     app: &AppHandle,
     event: SystemTrayEvent,
-    moved_instance: Arc<SingleInstance>,
+    moved_instance: &Arc<SingleInstance>,
 ) {
     match event {
         SystemTrayEvent::MenuItemClick { id, .. } => {
@@ -59,8 +59,9 @@ pub(crate) fn handle_system_tray_event(
                 std::process::exit(0);
             }
         }
-        SystemTrayEvent::LeftClick { .. } => app_controller::build_controller(app),
-        SystemTrayEvent::DoubleClick { .. } => app_controller::build_controller(app),
+        SystemTrayEvent::LeftClick { .. } | SystemTrayEvent::DoubleClick { .. } => {
+            app_controller::build_controller(app);
+        }
         _ => {}
     }
 }

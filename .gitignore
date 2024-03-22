@@ -1,9 +1,6 @@
 .vscode
 target
 robot.db
-controller/robot.db
-controller/report.html
-controller/report.json
 smart_tray/report.html
 smart_tray/report.json
 node_modules
@@ -11,3 +8,5 @@ node_modules
 package.json
 package-lock.json
 .eslintrc.json
+package.json
+package-lock.json

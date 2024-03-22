@@ -3,12 +3,12 @@ use std::fs::File;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};
-use sysinfo::{Pid, RefreshKind, System};
+use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System};
 
 use crate::process_ops::{self, AppProcess};
 
 #[inline]
-fn get_file_name(app: &process_ops::AppProcess) -> String {
+fn get_file_name(app: process_ops::AppProcess) -> String {
     app.to_string().replace(".exe", ".lock")
 }
 
@@ -36,8 +36,8 @@ fn check_existing_file(file_path: &PathBuf, app: &AppProcess) -> Result<CheckSta
     }
 
     let s = System::new_with_specifics(RefreshKind::with_processes(
-        Default::default(),
-        Default::default(),
+        RefreshKind::default(),
+        ProcessRefreshKind::default(),
     ));
     let line = match line.parse::<Pid>() {
         Ok(l) => l,
@@ -71,7 +71,7 @@ fn check_existing_file(file_path: &PathBuf, app: &AppProcess) -> Result<CheckSta
                     error!("Failed to create lock file with err: {}", e);
                     Err(anyhow!(e))
                 }
-                Ok(_) => Ok(CheckStatus::Passed),
+                Ok(()) => Ok(CheckStatus::Passed),
             }
         }
     }
@@ -82,7 +82,7 @@ fn create_lock_file(file_path: &PathBuf) -> Result<()> {
 
     let pid = format!("{}", std::process::id());
     match file.write_all(pid.as_ref()) {
-        Ok(_) => {
+        Ok(()) => {
             debug!("Created lock file: {:?} with content: {}", file_path, &pid);
             Ok(())
         }
@@ -99,17 +99,18 @@ pub struct SingleInstance {
 }
 
 impl SingleInstance {
+    #[must_use]
     pub fn new(new_app: process_ops::AppProcess) -> SingleInstance {
         SingleInstance { app: new_app }
     }
 
     pub fn check(&self) -> Result<CheckStatus> {
-        let current_lock = SingleInstance::get_path(&self.app).ok_or(anyhow!("No lock file"))?;
+        let current_lock = SingleInstance::get_path(self.app).ok_or(anyhow!("No lock file"))?;
         if current_lock.is_file() {
             check_existing_file(&current_lock, &self.app)
         } else {
             match create_lock_file(&current_lock) {
-                Ok(_) => Ok(CheckStatus::Passed),
+                Ok(()) => Ok(CheckStatus::Passed),
                 Err(e) => {
                     error!("Failed to create lock file with err: {}", e);
                     Err(e)
@@ -119,14 +120,14 @@ impl SingleInstance {
     }
 
     pub fn exit(&self) -> Result<()> {
-        let current_lock = SingleInstance::get_path(&self.app).ok_or(anyhow!("No lock file"))?;
+        let current_lock = SingleInstance::get_path(self.app).ok_or(anyhow!("No lock file"))?;
         if !current_lock.is_file() {
             info!("Could not find lock");
             return Ok(());
         }
 
         match fs::remove_file(current_lock) {
-            Ok(_) => {
+            Ok(()) => {
                 info!("Removed Lock file");
                 Ok(())
             }
@@ -137,7 +138,7 @@ impl SingleInstance {
         }
     }
 
-    fn get_path(app: &process_ops::AppProcess) -> Option<PathBuf> {
+    fn get_path(app: process_ops::AppProcess) -> Option<PathBuf> {
         let temp_dir = match env::var("TEMP") {
             Ok(dir) => {
                 debug!("TEMP dir: {:?}", dir);

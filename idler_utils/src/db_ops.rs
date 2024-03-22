@@ -18,6 +18,7 @@ pub struct RobotDatabase {
 }
 
 impl RobotDatabase {
+    #[must_use]
     pub fn new() -> Option<RobotDatabase> {
         let conn = match get_db_connection() {
             Ok(c) => c,
@@ -70,7 +71,7 @@ impl RobotDatabase {
 
     pub fn close(self) {
         match self.connection.close() {
-            Ok(_) => debug!("Closed bd conn"),
+            Ok(()) => debug!("Closed bd conn"),
             Err(err) => error!("Failed to close db conn with err: {:?}", err),
         }
     }

@@ -27,8 +27,8 @@ fn get_system_exe() -> System {
 pub fn restart_app(app: &AppProcess) {
     let current_app = *app;
     std::thread::spawn(move || {
-        info!("Restarting app: {:?}", &current_app);
-        match get_pid(&current_app) {
+        info!("Restarting app: {:?}", current_app);
+        match get_pid(current_app) {
             Some(_) => {
                 let _ = kill_app(&current_app, true);
                 let _ = open_app(&current_app, false);
@@ -44,7 +44,7 @@ pub fn kill_app(app: &AppProcess, wait_to_finish: bool) -> Result<()> {
     let current_app = *app;
     let kill_handle = std::thread::spawn(move || {
         let s = get_system_exe();
-        let pid = get_pid(&current_app).unwrap_or(0);
+        let pid = get_pid(current_app).unwrap_or(0);
         if pid == 0 {
             error!("No pid found for {:?}", &current_app);
             return Err(anyhow!("pid lookup failed"));
@@ -86,7 +86,7 @@ pub fn open_app(app: &AppProcess, wait_to_finish: bool) -> Result<()> {
     }
 
     match open_handle.join() {
-        Ok(_) => {
+        Ok(()) => {
             info!("Closed kill thread for {:?}", app);
             Ok(())
         }
@@ -97,7 +97,7 @@ pub fn open_app(app: &AppProcess, wait_to_finish: bool) -> Result<()> {
     }
 }
 
-fn get_pid(app: &AppProcess) -> Option<u32> {
+fn get_pid(app: AppProcess) -> Option<u32> {
     let process_name = app.to_string();
     let sys = get_system_exe();
     if let Some(process) = sys.processes_by_exact_name(&process_name).next() {

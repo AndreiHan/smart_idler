@@ -17,14 +17,13 @@ pub(crate) struct ControllerChannel {
 }
 
 pub(crate) fn build_controller(app: &tauri::AppHandle) {
-    match app.get_window("main") {
-        Some(win) => {
-            info!("Found 'main' window setting focus");
-            let _ = win.set_focus();
-            let _ = win.request_user_attention(Some(UserAttentionType::Informational));
-            return;
-        }
-        None => info!("Could not find 'main' window, launching it"),
+    if let Some(win) = app.get_window("main") {
+        info!("Found 'main' window setting focus");
+        let _ = win.set_focus();
+        let _ = win.request_user_attention(Some(UserAttentionType::Informational));
+        return;
+    } else {
+        info!("Could not find 'main' window, launching it");
     };
 
     let current_app = app.clone();
@@ -58,13 +57,10 @@ pub(crate) fn close_app_remote(rx: Receiver<String>) {
                 }
             };
             debug!("Received time: {:?}", hour);
-            let received_time = match NaiveTime::parse_from_str(&hour, "%H:%M") {
-                Ok(val) => val,
-                Err(_) => {
-                    info!("Received non time value, {}. Ignorring", hour);
-                    _sender = None;
-                    continue;
-                }
+            let Ok(received_time) = NaiveTime::parse_from_str(&hour, "%H:%M") else {
+                info!("Received non time value, {}. Ignorring", hour);
+                _sender = None;
+                continue;
             };
             let (sen, receiver) = mpsc::channel::<()>();
             _sender = Some(sen);
@@ -86,7 +82,7 @@ pub(crate) fn close_app_remote(rx: Receiver<String>) {
                 }
                 thread::sleep(Duration::from_millis(500));
                 match receiver.try_recv() {
-                    Ok(_) | Err(TryRecvError::Disconnected) => {
+                    Ok(()) | Err(TryRecvError::Disconnected) => {
                         info!("Cancelling task for: {}", received_time);
                         break;
                     }

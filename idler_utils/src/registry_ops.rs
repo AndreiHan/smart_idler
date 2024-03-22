@@ -59,7 +59,8 @@ pub struct RegistrySetting {
 }
 
 impl RegistrySetting {
-    pub fn new(entry: RegistryEntries) -> RegistrySetting {
+    #[must_use]
+    pub fn new(entry: &RegistryEntries) -> RegistrySetting {
         match entry {
             RegistryEntries::ForceInterval => {
                 let mut new_settings = RegistrySetting {
@@ -86,7 +87,7 @@ impl RegistrySetting {
                 }
                 new_settings
             }
-            RegistryEntries::StartMaintenance => {
+            RegistryEntries::StartMaintenance | RegistryEntries::StartWithWindows => {
                 let mut new_settings = RegistrySetting {
                     registry_entry: entry.clone(),
                     registry_name: entry.to_string(),
@@ -107,18 +108,6 @@ impl RegistrySetting {
                 let _ = new_settings.update_local_data();
                 if new_settings.last_data.is_empty() {
                     let _ = new_settings.set_registry_data(RegistryState::Enabled);
-                }
-                new_settings
-            }
-            RegistryEntries::StartWithWindows => {
-                let mut new_settings = RegistrySetting {
-                    registry_entry: entry.clone(),
-                    registry_name: entry.to_string(),
-                    last_data: RegistryState::Disabled.to_string(),
-                };
-                let _ = new_settings.update_local_data();
-                if new_settings.last_data.is_empty() {
-                    let _ = new_settings.set_registry_data(RegistryState::Disabled);
                 }
                 new_settings
             }
@@ -175,7 +164,7 @@ impl RegistrySetting {
             }
         };
         match app_key.set_string(&self.registry_name, &new_data) {
-            Ok(_) => {
+            Ok(()) => {
                 info!("Set data {:#?} in {}", new_data, self.registry_name);
                 self.last_data = new_data;
             }

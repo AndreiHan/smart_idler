@@ -24,7 +24,7 @@ pub fn get_shutdown_clock(state: State<AppState>) -> String {
         Ok(h) => h,
         Err(err) => {
             error!("Failed to lock shutdown with err: {}", err);
-            return "".to_string();
+            return String::new();
         }
     };
 
@@ -133,31 +133,29 @@ pub fn set_registry_state(state: State<AppState>, data: &str, wanted_status: boo
             return;
         }
     };
-    let _ = setting.set_registry_data(match wanted_status {
-        true => &enabled,
-        false => &disabled,
-    });
+    if wanted_status {
+        let _ = setting.set_registry_data(&enabled);
+    } else {
+        let _ = setting.set_registry_data(&disabled);
+    }
 }
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn set_force_interval(interval: &str) {
-    let mut setting = RegistrySetting::new(RegistryEntries::ForceInterval);
+    let mut setting = RegistrySetting::new(&RegistryEntries::ForceInterval);
     let _ = setting.set_registry_data(interval);
 }
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn tauri_get_db_count() -> Result<String, ()> {
-    if registry_ops::RegistrySetting::new(registry_ops::RegistryEntries::LogStatistics).last_data
+    if registry_ops::RegistrySetting::new(&registry_ops::RegistryEntries::LogStatistics).last_data
         == registry_ops::RegistryState::Disabled.to_string()
     {
         return Ok(String::from("Disabled"));
     }
-    let db = match db_ops::RobotDatabase::new() {
-        Some(db) => db,
-        None => {
-            error!("Failed to get db with");
-            return Err(());
-        }
+    let Some(db) = db_ops::RobotDatabase::new() else {
+        error!("Failed to get db with");
+        return Err(());
     };
     Ok(db.number_of_items.to_string())
 }

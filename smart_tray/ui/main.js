@@ -1,6 +1,40 @@
 const { invoke } = window.__TAURI__.tauri;
 
 //---Utils
+// eslint-disable-next-line i18n-text/no-en
+const INVALID_DATA_MESSAGE = "Invalid data";
+const LOADING_TEXT = "Loading...";
+const DEFAULT_SHUTDOWN_TIME = "19:00";
+const STOP_TIME = "STOP";
+const SUCCESSFUL_MESSAGE = "SUCCESSFUL";
+const SHUTDOWN_CLOCK_ID = "get_shutdown_clock";
+const SHUTDOWN_STATE_ID = "get_shutdown_state";
+const SET_SHUTDOWN_ID = "set_shutdown";
+const SET_FORCE_INTERVAL_ID = "set_force_interval";
+const SET_REGISTRY_STATE_ID = "set_registry_state";
+const GET_STATE_ID = "get_state";
+
+//---Default values
+const DEFAULT_MINIMUM_INTERVAL = 60;
+
+const CHECKBOX_LIST = [
+  ["log-toggle", "logging"],
+  ["mnts-toggle", "maintenance"],
+  ["startup-toggle", "startup"],
+];
+
+const CHECKBOX_SETTINGS_LIST = [
+  ["log-toggle", "logging"],
+  ["mnts-toggle", "maintenance"],
+  ["startup-toggle", "startup"],
+];
+
+const DOM_ELEMENTS = {
+  clockValue: document.getElementById("timed-input"),
+  clockStatus: document.getElementById("timed-stop"),
+  intervalData: document.getElementById("interval-data"),
+  submitIntervalBtn: document.getElementById("submit-interval-btn"),
+};
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -8,130 +42,115 @@ function sleep(ms) {
 
 //---Table refresh
 
-let refresh_table_list = [
+const refreshTableList = [
   ["robot-inputs", "tauri_get_db_count"],
   ["current-interval", "get_data", "force_interval"],
   ["last-input", "get_data", "robot_input"],
 ];
 
-function refresh_stats_table() {
-  refresh_table_list.forEach(refresh_table_element);
+function refreshStatsTable() {
+  for (const tableElement of refreshTableList) {
+    refreshTableElement(tableElement);
+  }
 }
 
-async function refresh_table_element(table_element) {
-  document.getElementById(table_element[0]).innerText = "Loading...";
+async function refreshTableElement(tableElement) {
+  document.getElementById(tableElement[0]).innerText = LOADING_TEXT;
   await sleep(250);
-  if (table_element[2] != undefined) {
-    invoke(table_element[1], { data: table_element[2] }).then(
-      (input) => (document.getElementById(table_element[0]).innerText = input),
-    );
+  let input;
+  if (tableElement[2] !== undefined) {
+    input = await invoke(tableElement[1], { data: tableElement[2] });
   } else {
-    invoke(table_element[1]).then(
-      (input) => (document.getElementById(table_element[0]).innerText = input),
-    );
+    input = await invoke(tableElement[1]);
   }
+  document.getElementById(tableElement[0]).innerText = input;
 }
 
 //---Checkbox refresh
 
-let refresh_checkbox_list = [
-  ["log-toggle", "logging"],
-  ["mnts-toggle", "maintenance"],
-  ["startup-toggle", "startup"],
-];
-
-function refresh_all_checkboxes() {
-  refresh_checkbox_list.forEach(refresh_checkbox);
+function refreshAllCheckboxes() {
+  for (const checkboxElement of CHECKBOX_LIST) {
+    refreshCheckbox(checkboxElement);
+  }
 }
 
-async function refresh_checkbox(checkbox_element) {
-  document.getElementById(checkbox_element[0]).checked = false;
+async function refreshCheckbox(checkboxElement) {
+  document.getElementById(checkboxElement[0]).checked = false;
   await sleep(250);
-  invoke("get_state", { data: checkbox_element[1] }).then(
-    (input) => (document.getElementById(checkbox_element[0]).checked = input),
-  );
+  const input = await invoke(GET_STATE_ID, { data: checkboxElement[1] });
+  document.getElementById(checkboxElement[0]).checked = input;
 }
 
 //---Event Listeners
 
 //-On Load
-window.addEventListener("DOMContentLoaded", () => {
-  refresh_stats_table();
-  refresh_all_checkboxes();
+window.addEventListener("DOMContentLoaded", async () => {
+  refreshStatsTable();
+  refreshAllCheckboxes();
 
   //-Shutdown load
-  invoke("get_shutdown_clock", {}).then(
-    (input) => (document.getElementById("timed-input").value = input),
-  );
-  invoke("get_shutdown_state", {}).then(
-    (input) => (document.getElementById("timed-stop").checked = input),
-  );
+  DOM_ELEMENTS.clockValue.value = await invoke(SHUTDOWN_CLOCK_ID, {});
+  DOM_ELEMENTS.clockStatus.checked = await invoke(SHUTDOWN_STATE_ID, {});
 });
 
 //-Buttons
 
 //-Auto shutdown
-let time_input = document.getElementById("timed-input");
-time_input.addEventListener("change", () => {
-  var timeValue = time_input.value;
-  console.log("Time value: ", timeValue);
-  invoke("set_shutdown", { hour: timeValue });
-  document.getElementById("timed-stop").checked = true;
+DOM_ELEMENTS.clockValue.addEventListener("change", () => {
+  const timeValue = DOM_ELEMENTS.clockValue.value;
+  invoke(SET_SHUTDOWN_ID, { hour: timeValue });
+  DOM_ELEMENTS.clockStatus.checked = true;
 });
 
 //-Enable shutdown
-let shutdown_checkbox = document.getElementById("timed-stop");
-shutdown_checkbox.addEventListener("click", () => {
-  if (shutdown_checkbox.checked == true) {
-    var timeValue = document.getElementById("timed-input").value;
-    console.log("Value enabled: " + timeValue);
-    if (timeValue == "STOP" || timeValue == "") {
-      var timeValue = "19:00";
+DOM_ELEMENTS.clockStatus.addEventListener("click", () => {
+  if (DOM_ELEMENTS.clockStatus.checked) {
+    let timeValue = DOM_ELEMENTS.clockValue.value;
+    if (timeValue === STOP_TIME || timeValue === "") {
+      timeValue = DEFAULT_SHUTDOWN_TIME;
     }
-    invoke("set_shutdown", { hour: timeValue });
-    document.getElementById("timed-input").value = timeValue;
+    invoke(SET_SHUTDOWN_ID, { hour: timeValue });
+    DOM_ELEMENTS.clockValue.value = timeValue;
   } else {
-    invoke("set_shutdown", { hour: "STOP" });
-    try {
-      document.getElementById("timed-input").value = "STOP";
-    } catch (e) {}
+    invoke(SET_SHUTDOWN_ID, { hour: STOP_TIME });
+    DOM_ELEMENTS.clockValue.value = STOP_TIME;
   }
 });
 
 //-Submit button
-let interval_btn = document.getElementById("submit-interval-btn");
-interval_btn.addEventListener("click", async () => {
-  let textbox = document.getElementById("interval-data");
-  if (isNaN(textbox.value) || textbox.value < 60) {
-    textbox.placeholder = "Invalid data";
+DOM_ELEMENTS.submitIntervalBtn.addEventListener("click", async () => {
+  const textbox = DOM_ELEMENTS.intervalData;
+  if (isNaN(textbox.value) || textbox.value < DEFAULT_MINIMUM_INTERVAL) {
+    textbox.placeholder = INVALID_DATA_MESSAGE;
     textbox.value = "";
   } else {
-    invoke("set_force_interval", {
+    invoke(SET_FORCE_INTERVAL_ID, {
       interval: textbox.value,
     });
-    textbox.placeholder = "SUCCESSFUL";
+    textbox.placeholder = SUCCESSFUL_MESSAGE;
     textbox.value = "";
-    refresh_stats_table();
+    refreshStatsTable();
   }
 });
 
 //-Checkboxes
 
-let settings_checkbox_list = [
-  ["log-toggle", "logging"],
-  ["mnts-toggle", "maintenance"],
-  ["startup-toggle", "startup"],
-];
+for (const checkbox of CHECKBOX_SETTINGS_LIST) {
+  setEventListener(checkbox);
+}
 
-settings_checkbox_list.forEach(set_event_listener);
-
-function set_event_listener(checkbox) {
-  let startup_checkbox = document.getElementById(checkbox[0]);
-  startup_checkbox.addEventListener("click", () => {
-    if (document.getElementById(checkbox[0]).checked == true) {
-      invoke("set_registry_state", { data: checkbox[1], wanted_status: true });
+function setEventListener(checkbox) {
+  const startupCheckbox = document.getElementById(checkbox[0]);
+  startupCheckbox.addEventListener("click", () => {
+    if (document.getElementById(checkbox[0]).checked) {
+      // eslint-disable-next-line camelcase
+      invoke(SET_REGISTRY_STATE_ID, { data: checkbox[1], wanted_status: true });
     } else {
-      invoke("set_registry_state", { data: checkbox[1], wanted_status: false });
+      invoke(SET_REGISTRY_STATE_ID, {
+        data: checkbox[1],
+        // eslint-disable-next-line camelcase
+        wanted_status: false,
+      });
     }
   });
 }

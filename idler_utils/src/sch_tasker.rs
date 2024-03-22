@@ -22,15 +22,12 @@ fn get_schtasks_path() -> Option<PathBuf> {
     let sys32_path = Path::new(win_dir.as_str())
         .join("system32")
         .join("schtasks.exe");
-    match sys32_path.is_file() {
-        true => {
-            debug!("Found file schtasks.exe: {:?}", sys32_path.to_str());
-            Some(sys32_path)
-        }
-        false => {
-            error!("schtasks path: {:?} doesn't exist", sys32_path.as_path());
-            None
-        }
+    if sys32_path.is_file() {
+        debug!("Found file schtasks.exe: {:?}", sys32_path.to_str());
+        Some(sys32_path)
+    } else {
+        error!("schtasks path: {:?} doesn't exist", sys32_path.as_path());
+        None
     }
 }
 
@@ -39,11 +36,15 @@ pub fn delete_rule(schtasks: Option<&PathBuf>) -> Result<()> {
         None => match get_schtasks_path() {
             Some(p) => p,
             None => {
-                error!("Failed to get schtasks path");
-                return Err(anyhow!("Path issue"));
+                if let Some(p) = get_schtasks_path() {
+                    p
+                } else {
+                    error!("Failed to get schtasks path");
+                    return Err(anyhow!("Path issue"));
+                }
             }
         },
-        Some(path) => path.to_path_buf(),
+        Some(path) => path.clone(),
     };
     let mut scheduler = Command::new(schtasks_path);
     let sch_args = vec!["/delete", "/tn", TASK_NAME, "/f"];
@@ -58,8 +59,8 @@ pub fn delete_rule(schtasks: Option<&PathBuf>) -> Result<()> {
             return Err(anyhow!("Failed to run command"));
         }
     };
-    match output.status.code() {
-        Some(value) => match value {
+    if let Some(value) = output.status.code() {
+        match value {
             0 => {
                 info!("Deleted Task with name: {} | {:?}", TASK_NAME, output);
                 Ok(())
@@ -71,11 +72,10 @@ pub fn delete_rule(schtasks: Option<&PathBuf>) -> Result<()> {
                 );
                 Err(anyhow!("Error: {}", err))
             }
-        },
-        None => {
-            error!("Failed parsing output");
-            Err(anyhow!("Formatting issue"))
         }
+    } else {
+        error!("Failed parsing output");
+        Err(anyhow!("Formatting issue"))
     }
 }
 
@@ -103,12 +103,9 @@ pub fn enable_rule() -> Result<()> {
         }
     };
 
-    let exe_str_path = match exe_path.to_str() {
-        Some(value) => value,
-        None => {
-            error!("Failed to convert {:?} to str", exe_path);
-            return Err(anyhow!("conversion issue"));
-        }
+    let Some(exe_str_path) = exe_path.to_str() else {
+        error!("Failed to convert {:?} to str", exe_path);
+        return Err(anyhow!("conversion issue"));
     };
 
     let sch_args = vec![
