@@ -18,7 +18,7 @@ pub enum CheckStatus {
     Passed,
 }
 
-fn check_existing_file(file_path: &PathBuf, app: &AppProcess) -> Result<CheckStatus> {
+fn check_existing_file(file_path: &PathBuf, app: AppProcess) -> Result<CheckStatus> {
     let file = match File::open(file_path) {
         Ok(f) => f,
         Err(err) => {
@@ -99,15 +99,34 @@ pub struct SingleInstance {
 }
 
 impl SingleInstance {
+    /// Creates a new instance of `SingleInstance`.
+    ///
+    /// # Arguments
+    ///
+    /// * `new_app` - The `AppProcess` to associate with the `SingleInstance`.
+    ///
+    /// # Returns
+    ///
+    /// A new instance of `SingleInstance`.
     #[must_use]
     pub fn new(new_app: process_ops::AppProcess) -> SingleInstance {
         SingleInstance { app: new_app }
     }
 
+    /// Checks if the lock file exists and performs necessary actions based on the result.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the lock file does not exist or if there is an error creating the lock file.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(CheckStatus::Passed)` if the lock file exists and passes the check.
+    /// - `Err` if there is an error checking the lock file.
     pub fn check(&self) -> Result<CheckStatus> {
         let current_lock = SingleInstance::get_path(self.app).ok_or(anyhow!("No lock file"))?;
         if current_lock.is_file() {
-            check_existing_file(&current_lock, &self.app)
+            check_existing_file(&current_lock, self.app)
         } else {
             match create_lock_file(&current_lock) {
                 Ok(()) => Ok(CheckStatus::Passed),
@@ -119,6 +138,16 @@ impl SingleInstance {
         }
     }
 
+    /// Removes the lock file if it exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an error removing the lock file.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(())` if the lock file is successfully removed or if it does not exist.
+    /// - `Err` if there is an error removing the lock file.
     pub fn exit(&self) -> Result<()> {
         let current_lock = SingleInstance::get_path(self.app).ok_or(anyhow!("No lock file"))?;
         if !current_lock.is_file() {

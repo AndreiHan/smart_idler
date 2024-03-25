@@ -30,7 +30,15 @@ fn get_schtasks_path() -> Option<PathBuf> {
         None
     }
 }
-
+/// Deletes a scheduled task using the `schtasks.exe` command.
+///
+/// # Arguments
+///
+/// * `schtasks` - Optional path to the `schtasks.exe` command. If `None`, the function will attempt to find the path automatically.
+///
+/// # Errors
+///
+/// Returns an error if the `schtasks.exe` command is not found or if there is an issue running the command.
 pub fn delete_rule(schtasks: Option<&PathBuf>) -> Result<()> {
     let schtasks_path: PathBuf = match schtasks {
         None => match get_schtasks_path() {
@@ -78,7 +86,11 @@ pub fn delete_rule(schtasks: Option<&PathBuf>) -> Result<()> {
         Err(anyhow!("Formatting issue"))
     }
 }
-
+/// Enables a scheduled task using the `schtasks.exe` command.
+///
+/// # Errors
+///
+/// Returns an error if the `schtasks.exe` command is not found or if there is an issue running the command.
 pub fn enable_rule() -> Result<()> {
     let schtasks_path = match get_schtasks_path() {
         None => {

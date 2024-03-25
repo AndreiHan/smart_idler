@@ -1,3 +1,4 @@
+#![allow(clippy::needless_pass_by_value)]
 use idler_utils::db_ops;
 use idler_utils::registry_ops;
 use idler_utils::registry_ops::RegistryState;

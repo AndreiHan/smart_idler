@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use std::mem::size_of_val;
 use std::ptr::{addr_of, addr_of_mut};
 use std::thread;
@@ -61,7 +61,7 @@ impl ExecState {
     }
 }
 
-fn send_key_input() {
+fn send_key_input() -> Result<()> {
     let press_key: INPUT = INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {
@@ -90,24 +90,24 @@ fn send_key_input() {
     let keys_list = [press_key, release_key];
     unsafe {
         for item in keys_list {
-            let value = SendInput(&[item], size_of_val(&[item]) as i32);
+            let value = SendInput(&[item], size_of_val(&[item]).try_into()?);
             if value == 1 {
                 info!("Sent KeyboardInput");
             } else {
-                error!(
-                    "Failed to send KeyboardInput, last err {:?}",
-                    GetLastError()
-                );
+                let err = GetLastError();
+                error!("Failed to send KeyboardInput, last err {:?}", err);
+                return Err(anyhow!("{:?}", err));
             }
         }
+        Ok(())
     }
 }
 
-fn send_mouse_input(wheel_movement: i32) {
+fn send_mouse_input(wheel_movement: i32) -> Result<()> {
     let mouse_input: MOUSEINPUT = MOUSEINPUT {
         dx: 0,
         dy: 0,
-        mouseData: wheel_movement as u32,
+        mouseData: wheel_movement.unsigned_abs(),
         dwFlags: MOUSEEVENTF_WHEEL,
         time: 0,
         dwExtraInfo: 0,
@@ -119,11 +119,14 @@ fn send_mouse_input(wheel_movement: i32) {
     };
 
     unsafe {
-        let value = SendInput(&[input_struct], size_of_val(&[input_struct]) as i32);
+        let value = SendInput(&[input_struct], size_of_val(&[input_struct]).try_into()?);
         if value == 1 {
             info!("Sent MouseInput");
+            Ok(())
         } else {
-            error!("Failed to send MouseInput, last err {:?}", GetLastError());
+            let err = GetLastError();
+            error!("Failed to send MouseInput, last err {:?}", err);
+            Err(anyhow!("{:?}", err))
         }
     }
 }
@@ -142,13 +145,18 @@ fn send_mixed_input() {
         debug!("Did not log input => Logging to db is disabled");
     }
 
-    send_mouse_input(1);
-    send_key_input();
+    let _ = send_mouse_input(1);
+    let _ = send_key_input();
     let local_time = registry_ops::get_current_time();
     let _ = registry_ops::RegistrySetting::new(&registry_ops::RegistryEntries::LastRobotInput)
         .set_registry_data(&local_time);
 }
-
+/// Spawns a new window.
+///
+/// # Errors
+///
+/// This function will return an error if the window creation fails for any reason,
+/// such as if the window class could not be registered, or if the window could not be created.
 pub fn spawn_window() -> Result<()> {
     unsafe {
         let instance = GetModuleHandleA(None)?;
@@ -242,7 +250,12 @@ fn get_last_input() -> Option<u64> {
         cbSize: 0,
         dwTime: 0,
     };
-    last_input.cbSize = size_of_val(&last_input) as u32;
+    last_input.cbSize = if let Ok(val) = size_of_val(&last_input).try_into() {
+        val
+    } else {
+        error!("Failed to get size of last input");
+        return None;
+    };
 
     unsafe {
         if GetLastInputInfo(addr_of_mut!(last_input)) != BOOL(1) {
@@ -266,7 +279,12 @@ fn send_to_db() -> Result<()> {
     info!("db items: {}", db.number_of_items);
     Ok(())
 }
-
+/// The main idle loop.
+///
+/// # Errors
+///
+/// This function will return an error if there is a problem with the registry operations or
+/// sending inputs to the system.
 pub fn idle_loop() -> Result<()> {
     debug!("Start idle time thread");
     let mut registry_interval =

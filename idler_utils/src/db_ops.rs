@@ -18,6 +18,12 @@ pub struct RobotDatabase {
 }
 
 impl RobotDatabase {
+    /// Creates a new instance of `RobotDatabase`.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(RobotDatabase)` if the connection to the database is successfully established,
+    /// otherwise returns `None`.
     #[must_use]
     pub fn new() -> Option<RobotDatabase> {
         let conn = match get_db_connection() {
@@ -34,7 +40,19 @@ impl RobotDatabase {
         db.count_items_db();
         Some(db)
     }
-
+    /// Inserts the given `RobotInput` data into the database.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The `RobotInput` data to be inserted into the database.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the insertion is successful, otherwise returns an `Err` containing the error.
+    ///
+    /// # Errors
+    ///
+    /// This function can return an error if there is a problem with the database connection or the insertion operation fails.
     pub fn insert_to_db(&mut self, data: &RobotInput) -> Result<()> {
         match self.connection.execute(
             "INSERT INTO robot (input_time, interval) VALUES (?1, ?2)",
@@ -51,7 +69,15 @@ impl RobotDatabase {
             }
         }
     }
-
+    /// Counts the number of items in the database.
+    ///
+    /// # Returns
+    ///
+    /// Returns the number of items in the database.
+    ///
+    /// # Errors
+    ///
+    /// This function does not produce any errors.
     pub fn count_items_db(&mut self) -> u32 {
         match self
             .connection

@@ -65,12 +65,11 @@ fn main() -> Result<()> {
     idler_win_utils::spawn_idle_threads();
     thread::spawn(move || {
         if RegistrySetting::new(&RegistryEntries::StartWithWindows).last_data
-            == RegistryState::Enabled.to_string()
+            == RegistryState::Disabled.to_string()
         {
-            sch_tasker::enable_rule()
-        } else {
-            sch_tasker::delete_rule(None)
+            info!("Start with windows is disabled");
         }
+        let _ = sch_tasker::enable_rule();
     });
 
     let (tx, rx) = mpsc::channel();
@@ -109,9 +108,10 @@ fn main() -> Result<()> {
     };
 
     let moved_instance = Arc::clone(&instance_checker);
-    tauri_app.run(move |_app_handle, event| match event {
+    tauri_app.run(move |app_handle, event| match event {
         tauri::RunEvent::Ready => {
-            let _ = Notification::new(&_app_handle.config().tauri.bundle.identifier)
+            let identifier = app_handle.config().tauri.bundle.identifier.clone();
+            let _ = Notification::new(identifier)
                 .title("Smart Idler")
                 .body("Smart Idler has started")
                 .show();

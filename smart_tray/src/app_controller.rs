@@ -22,9 +22,8 @@ pub(crate) fn build_controller(app: &tauri::AppHandle) {
         let _ = win.set_focus();
         let _ = win.request_user_attention(Some(UserAttentionType::Informational));
         return;
-    } else {
-        info!("Could not find 'main' window, launching it");
-    };
+    }
+    info!("Could not find 'main' window, launching it");
 
     let current_app = app.clone();
     thread::spawn(move || {

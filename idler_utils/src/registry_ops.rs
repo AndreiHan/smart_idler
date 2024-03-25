@@ -125,7 +125,11 @@ impl RegistrySetting {
             }
         }
     }
-
+    /// Updates the local data for the registry setting.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is a problem opening the app key or getting the data from the registry.
     pub fn update_local_data(&mut self) -> Result<String> {
         let app_key = match LOCAL_MACHINE.open(APP_SUBKEY) {
             Ok(e) => e,
@@ -152,7 +156,15 @@ impl RegistrySetting {
         self.last_data = data.clone();
         Ok(data)
     }
-
+    /// Sets the registry data for the registry setting.
+    ///
+    /// # Arguments
+    ///
+    /// * `new_data` - The new data to set in the registry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is a problem setting the data in the registry.
     pub fn set_registry_data<T: Into<String>>(&mut self, new_data: T) -> Result<()> {
         let new_data = new_data.into();
         let app_key = match LOCAL_MACHINE.create(APP_SUBKEY) {
@@ -189,6 +201,7 @@ fn create_app_key() {
 }
 
 #[inline]
+#[must_use]
 pub fn get_current_time() -> String {
     Local::now().format("%H:%M:%S").to_string()
 }

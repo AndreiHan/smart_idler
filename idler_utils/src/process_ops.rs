@@ -39,7 +39,16 @@ pub fn restart_app(app: &AppProcess) {
         }
     });
 }
-
+/// Kills the specified app process.
+///
+/// # Arguments
+///
+/// * `app` - The app process to kill.
+/// * `wait_to_finish` - Whether to wait for the process to finish before returning.
+///
+/// # Errors
+///
+/// Returns an error if the process lookup or kill operation fails.
 pub fn kill_app(app: &AppProcess, wait_to_finish: bool) -> Result<()> {
     let current_app = *app;
     let kill_handle = std::thread::spawn(move || {
@@ -73,7 +82,16 @@ pub fn kill_app(app: &AppProcess, wait_to_finish: bool) -> Result<()> {
         }
     }
 }
-
+/// Opens the specified app process.
+///
+/// # Arguments
+///
+/// * `app` - The app process to open.
+/// * `wait_to_finish` - Whether to wait for the process to finish before returning.
+///
+/// # Errors
+///
+/// Returns an error if the process fails to open.
 pub fn open_app(app: &AppProcess, wait_to_finish: bool) -> Result<()> {
     let current_app = *app;
     let open_handle = thread::spawn(move || {
