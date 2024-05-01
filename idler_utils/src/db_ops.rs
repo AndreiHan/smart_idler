@@ -1,8 +1,6 @@
 use anyhow::{Context, Result};
 use rusqlite::Connection;
-use std::cell::Cell;
-use std::fs;
-use std::path::PathBuf;
+use std::{cell::Cell, fs, path::PathBuf};
 
 const DB_NAME: &str = "robot.db";
 

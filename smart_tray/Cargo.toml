@@ -23,8 +23,9 @@ tauri = { workspace = true, features = [
   "window-close",
   "window-hide",
   "window-show",
-] }
-chrono = "0.4.38"
+  ]}
+
+chrono = "0.4"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

@@ -1,5 +1,5 @@
 [workspace]
-members = ["smart_tray", "idler_utils"]
+members = ["smart_tray"]
 resolver = "2"
 
 [workspace.package]

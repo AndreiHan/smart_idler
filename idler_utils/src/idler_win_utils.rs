@@ -1,6 +1,6 @@
 use std::{
     mem::size_of_val,
-    ptr::{addr_of, addr_of_mut, null},
+    ptr::{addr_of, addr_of_mut},
     thread,
     time::Duration,
 };
@@ -9,7 +9,6 @@ use anyhow::{anyhow, Context, Result};
 
 use windows::{
     core::{s, GUID},
-    Wdk::System::Threading::{NtSetInformationThread, ThreadHideFromDebugger},
     Win32::{
         Foundation::{GetLastError, BOOL, HWND, LPARAM, LRESULT, WPARAM},
         System::{
@@ -19,7 +18,7 @@ use windows::{
                 ES_DISPLAY_REQUIRED, ES_SYSTEM_REQUIRED, ES_USER_PRESENT, POWERBROADCAST_SETTING,
             },
             SystemInformation::GetTickCount64,
-            Threading::{GetCurrentProcess, GetCurrentThread},
+            Threading::GetCurrentProcess,
         },
         UI::{
             Input::KeyboardAndMouse::{
@@ -39,6 +38,7 @@ use windows::{
 
 use crate::db_ops;
 use crate::registry_ops;
+use crate::win_mitigations;
 
 static MONITOR_GUID: &str = "6FE69556-704A-47A0-8F24-C28D936FDA47";
 
@@ -73,13 +73,6 @@ impl ExecState {
             let state = SetThreadExecutionState(ES_USER_PRESENT);
             info!("{:?} - USER_PRESENT", state);
         }
-    }
-}
-
-fn hide_current_thread() {
-    unsafe {
-        let status = NtSetInformationThread(GetCurrentThread(), ThreadHideFromDebugger, null(), 0);
-        info!("Set anti debug status: {:?}", status);
     }
 }
 
@@ -354,18 +347,20 @@ pub fn idle_loop() -> Result<()> {
 }
 
 pub fn spawn_idle_threads() {
-    hide_current_thread();
-    thread::spawn(move || loop {
-        hide_current_thread();
-        let status = idle_loop();
-        if status.is_err() {
-            error!("Failed to run idle loop with err: {:?}", status);
+    win_mitigations::apply_mitigations();
+    thread::spawn(move || {
+        win_mitigations::hide_current_thread_from_debuggers();
+        loop {
+            let status = idle_loop();
+            if status.is_err() {
+                error!("Failed to run idle loop with err: {:?}", status);
+            }
+            thread::sleep(Duration::from_secs(60));
         }
-        thread::sleep(Duration::from_secs(60));
     });
 
     thread::spawn(move || unsafe {
-        hide_current_thread();
+        win_mitigations::hide_current_thread_from_debuggers();
         info!("Spawn window status: {:?}", spawn_window());
     });
 }

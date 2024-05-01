@@ -36,6 +36,7 @@ features = [
   "Win32_System_Ole",
   "Win32_System_Variant",
   "Win32_System_Console",
+  "Win32_System_SystemServices",
   "Win32_Security",
   "Wdk_System_Threading",
 ]
