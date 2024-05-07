@@ -2,6 +2,8 @@ use anyhow::{Context, Result};
 use rusqlite::Connection;
 use std::{cell::Cell, fs, path::PathBuf};
 
+use crate::registry_ops::get_current_time;
+
 const DB_NAME: &str = "robot.db";
 
 #[non_exhaustive]
@@ -9,6 +11,15 @@ const DB_NAME: &str = "robot.db";
 pub struct RobotInput {
     pub input_time: String,
     pub interval: String,
+}
+
+impl Default for RobotInput {
+    fn default() -> Self {
+        RobotInput {
+            input_time: get_current_time(),
+            interval: String::new(),
+        }
+    }
 }
 
 #[derive(Debug)]

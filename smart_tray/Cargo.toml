@@ -1,9 +1,12 @@
 [package]
 name = "smart_tray"
 description = "Visual Idler - tray"
+build = "build.rs"
+
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 
 [build-dependencies]
 tauri-build = { workspace = true }
@@ -11,11 +14,12 @@ tauri-build = { workspace = true }
 [dependencies]
 idler_utils = { path = "../idler_utils" }
 
+serde = { workspace = true, features = ["derive", "rc"] }
 log = { workspace = true }
 env_logger = { workspace = true }
 anyhow = { workspace = true }
-
-serde = { workspace = true, features = ["derive", "rc"] }
+chrono = { workspace = true }
+once_cell = { workspace = true }
 tauri = { workspace = true, features = [
   "system-tray",
   "shell-open",
@@ -24,8 +28,6 @@ tauri = { workspace = true, features = [
   "window-hide",
   "window-show",
   ]}
-
-chrono = "0.4"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

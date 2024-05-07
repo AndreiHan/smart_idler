@@ -11,8 +11,7 @@ use std::sync::{
     {mpsc, Mutex},
 };
 use tauri::{
-    api::notification::Notification,
-    {generate_context, generate_handler, Builder, RunEvent},
+    api::notification::Notification, generate_context, generate_handler, Builder, RunEvent,
 };
 
 use idler_utils::{

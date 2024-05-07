@@ -10,44 +10,10 @@ use std::{
     thread,
     time::Duration,
 };
-use tauri::{AppHandle, Manager, UserAttentionType, Window, WindowUrl};
 
 pub(crate) struct ControllerChannel {
     pub(crate) tx: Mutex<Sender<String>>,
     pub(crate) active: AtomicBool,
-}
-
-fn focus_window(window: &Window) {
-    let status = window.set_focus();
-    trace!("Focus status: {status:?}");
-    let status = window.request_user_attention(Some(UserAttentionType::Informational));
-    trace!("User attention status: {status:?}");
-}
-
-pub(crate) fn build_controller(app: &AppHandle) {
-    if let Some(win) = app.get_window("main") {
-        info!("Found 'main' window setting focus");
-        focus_window(&win);
-        return;
-    }
-    info!("Could not find 'main' window, launching it");
-
-    let current_app = app.clone();
-    thread::spawn(move || {
-        match tauri::WindowBuilder::new(&current_app, "main", WindowUrl::App("ui".into()))
-            .fullscreen(false)
-            .resizable(false)
-            .title("Controller")
-            .center()
-            .inner_size(900.into(), 425.into())
-            .build()
-        {
-            Ok(handle) => {
-                focus_window(&handle);
-            }
-            Err(e) => error!("Failed to create controller app, err: {e}"),
-        }
-    });
 }
 
 pub(crate) fn close_app_remote(rx: Receiver<String>) {

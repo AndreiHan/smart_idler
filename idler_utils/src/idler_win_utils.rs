@@ -1,18 +1,14 @@
-use std::{
-    mem::size_of_val,
-    ptr::{addr_of, addr_of_mut},
-    thread,
-    time::Duration,
-};
+use std::{mem::size_of_val, sync::Mutex, thread, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
+use once_cell::sync::Lazy;
 
 use windows::{
-    core::{s, GUID},
+    core::{w, GUID},
     Win32::{
-        Foundation::{GetLastError, BOOL, HWND, LPARAM, LRESULT, WPARAM},
+        Foundation::{GetLastError, BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
         System::{
-            LibraryLoader::GetModuleHandleA,
+            LibraryLoader::GetModuleHandleW,
             Power::{
                 RegisterPowerSettingNotification, SetThreadExecutionState, ES_CONTINUOUS,
                 ES_DISPLAY_REQUIRED, ES_SYSTEM_REQUIRED, ES_USER_PRESENT, POWERBROADCAST_SETTING,
@@ -27,10 +23,10 @@ use windows::{
                 MOUSEINPUT, VK_ESCAPE,
             },
             WindowsAndMessaging::{
-                CreateWindowExA, DefWindowProcA, DispatchMessageA, GetMessageA, LoadCursorW,
-                RegisterClassA, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, IDC_ARROW, MSG,
-                PBT_APMQUERYSUSPEND, REGISTER_NOTIFICATION_FLAGS, WINDOW_EX_STYLE,
-                WM_POWERBROADCAST, WNDCLASSA, WS_OVERLAPPEDWINDOW,
+                CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, LoadCursorW,
+                RegisterClassW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, HWND_MESSAGE, IDC_ARROW,
+                MSG, PBT_APMQUERYSUSPEND, REGISTER_NOTIFICATION_FLAGS, WINDOW_EX_STYLE,
+                WM_POWERBROADCAST, WNDCLASSW, WS_OVERLAPPEDWINDOW,
             },
         },
     },
@@ -103,19 +99,17 @@ fn send_key_input() -> Result<()> {
             },
         },
     ];
-    unsafe {
-        for item in keys_list {
-            let value = SendInput(&[item], size_of_val(&[item]).try_into()?);
-            if value == 1 {
-                info!("Sent KeyboardInput");
-            } else {
-                let err = GetLastError();
-                error!("Failed to send KeyboardInput, last err {:?}", err);
-                return Err(anyhow!("{:?}", err));
-            }
+    for item in keys_list {
+        let value = unsafe { SendInput(&[item], size_of_val(&[item]).try_into()?) };
+        if value == 1 {
+            info!("Sent KeyboardInput");
+        } else {
+            let err = unsafe { GetLastError() };
+            error!("Failed to send KeyboardInput, last err {:?}", err);
+            return Err(anyhow!("{:?}", err));
         }
-        Ok(())
     }
+    Ok(())
 }
 
 fn send_mouse_input(wheel_movement: i32) -> Result<()> {
@@ -133,23 +127,31 @@ fn send_mouse_input(wheel_movement: i32) -> Result<()> {
         },
     };
 
-    unsafe {
-        if SendInput(&[input_struct], size_of_val(&[input_struct]).try_into()?) == 1 {
-            info!("Sent MouseInput");
-            Ok(())
-        } else {
-            let err = GetLastError();
-            error!("Failed to send MouseInput, last err {:?}", err);
-            Err(anyhow!("{:?}", err))
-        }
+    if unsafe { SendInput(&[input_struct], size_of_val(&[input_struct]).try_into()?) } == 1 {
+        info!("Sent MouseInput");
+        Ok(())
+    } else {
+        let err = unsafe { GetLastError() };
+        error!("Failed to send MouseInput, last err {:?}", err);
+        Err(anyhow!("{:?}", err))
     }
 }
 
+static REGISTRY_LOG_STATISTICS: Lazy<Mutex<registry_ops::RegistrySetting>> = Lazy::new(|| {
+    Mutex::new(registry_ops::RegistrySetting::new(
+        &registry_ops::RegistryEntries::LogStatistics,
+    ))
+});
+
+static REGISTRY_ROBOT_INPUT: Lazy<Mutex<registry_ops::RegistrySetting>> = Lazy::new(|| {
+    Mutex::new(registry_ops::RegistrySetting::new(
+        &registry_ops::RegistryEntries::LastRobotInput,
+    ))
+});
+
 fn send_mixed_input(input_type: &InputType) {
     let mut log_input = false;
-    if registry_ops::RegistrySetting::new(&registry_ops::RegistryEntries::LogStatistics).last_data
-        == registry_ops::RegistryState::Enabled.to_string()
-    {
+    if REGISTRY_LOG_STATISTICS.lock().unwrap().is_enabled() {
         log_input = true;
     }
 
@@ -171,7 +173,9 @@ fn send_mixed_input(input_type: &InputType) {
     } else {
         let _ = send_key_input();
     }
-    let _ = registry_ops::RegistrySetting::new(&registry_ops::RegistryEntries::LastRobotInput)
+    let _ = REGISTRY_ROBOT_INPUT
+        .lock()
+        .unwrap()
         .set_registry_data(&registry_ops::get_current_time());
 }
 /// Spawns a new window.
@@ -181,15 +185,15 @@ fn send_mixed_input(input_type: &InputType) {
 /// This function will return an error if the window creation fails for any reason,
 /// such as if the window class could not be registered, or if the window could not be created.
 #[allow(clippy::missing_safety_doc)]
-pub unsafe fn spawn_window() -> Result<()> {
-    let instance = GetModuleHandleA(None)?;
+pub fn spawn_window() -> Result<()> {
+    let instance: HINSTANCE = unsafe { GetModuleHandleW(None) }?.into();
     debug_assert!(instance.0 != 0);
 
-    let window_class = s!("window");
+    let window_class = w!("window");
 
-    let wc = WNDCLASSA {
-        hCursor: LoadCursorW(None, IDC_ARROW)?,
-        hInstance: instance.into(),
+    let wc = WNDCLASSW {
+        hCursor: unsafe { LoadCursorW(None, IDC_ARROW) }?,
+        hInstance: instance,
         lpszClassName: window_class,
 
         style: CS_HREDRAW | CS_VREDRAW,
@@ -197,29 +201,33 @@ pub unsafe fn spawn_window() -> Result<()> {
         ..Default::default()
     };
 
-    let atom = RegisterClassA(&wc);
+    let atom = unsafe { RegisterClassW(&wc) };
     debug_assert!(atom != 0);
 
-    CreateWindowExA(
-        WINDOW_EX_STYLE::default(),
-        window_class,
-        s!("LsWindow"),
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        None,
-        None,
-        instance,
-        None,
-    );
+    unsafe {
+        CreateWindowExW(
+            WINDOW_EX_STYLE::default(),
+            window_class,
+            w!("LsWindow"),
+            WS_OVERLAPPEDWINDOW,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            HWND_MESSAGE,
+            None,
+            instance,
+            None,
+        )
+    };
     let guid = GUID::from(MONITOR_GUID);
-    match RegisterPowerSettingNotification(
-        GetCurrentProcess(),
-        addr_of!(guid),
-        REGISTER_NOTIFICATION_FLAGS(0),
-    ) {
+    match unsafe {
+        RegisterPowerSettingNotification(
+            GetCurrentProcess(),
+            std::ptr::from_ref(&guid),
+            REGISTER_NOTIFICATION_FLAGS(0),
+        )
+    } {
         Ok(hp) => {
             info!("Registered for power notifications: {:?}", hp);
         }
@@ -229,8 +237,8 @@ pub unsafe fn spawn_window() -> Result<()> {
     }
 
     let mut message = MSG::default();
-    while GetMessageA(&mut message, None, 0, 0).into() {
-        DispatchMessageA(&message);
+    while unsafe { GetMessageW(&mut message, None, 0, 0).into() } {
+        unsafe { DispatchMessageW(&message) };
     }
     Ok(())
 }
@@ -254,50 +262,52 @@ unsafe extern "system" fn wndproc(
                 let guid = GUID::from(MONITOR_GUID);
                 if st.PowerSetting == guid && st.Data == [0] {
                     thread::spawn(|| send_mixed_input);
-                    let _ = registry_ops::RegistrySetting::new(
-                        &registry_ops::RegistryEntries::LastRobotInput,
-                    )
-                    .set_registry_data(&registry_ops::get_current_time());
+                    let _ = REGISTRY_ROBOT_INPUT
+                        .lock()
+                        .unwrap()
+                        .set_registry_data(&registry_ops::get_current_time());
                 }
             }
             LRESULT(0)
         }
         _ => {
             debug!("{} - {:?} - {:?}", message, wparam, lparam);
-            DefWindowProcA(window, message, wparam, lparam)
+            DefWindowProcW(window, message, wparam, lparam)
         }
     }
 }
 
 fn get_last_input() -> Option<u64> {
-    let mut last_input = LASTINPUTINFO {
-        cbSize: 0,
-        dwTime: 0,
-    };
+    let mut last_input = LASTINPUTINFO::default();
+
     last_input.cbSize = if let Ok(val) = size_of_val(&last_input).try_into() {
         val
     } else {
         error!("Failed to get size of last input");
         return None;
     };
-
+    let total_ticks;
     unsafe {
-        if GetLastInputInfo(addr_of_mut!(last_input)) != BOOL(1) {
-            error!("Failed to get last input info");
+        if GetLastInputInfo(std::ptr::from_mut(&mut last_input)) != BOOL(1) {
+            error!("Failed to get last input info, {:?}", GetLastError());
             return None;
         }
-        let total_ticks = GetTickCount64();
-        Some(Duration::from_millis(total_ticks - u64::from(last_input.dwTime)).as_secs())
+        total_ticks = GetTickCount64();
     }
+    Some(Duration::from_millis(total_ticks - u64::from(last_input.dwTime)).as_secs())
 }
+
+static REGISTRY_FORCE_INTERVAL: Lazy<Mutex<registry_ops::RegistrySetting>> = Lazy::new(|| {
+    Mutex::new(registry_ops::RegistrySetting::new(
+        &registry_ops::RegistryEntries::ForceInterval,
+    ))
+});
 
 fn send_to_db() -> Result<()> {
     let mut db = db_ops::RobotDatabase::new().context("Db is none")?;
-
     db.insert_to_db(&db_ops::RobotInput {
-        input_time: registry_ops::get_current_time(),
-        interval: registry_ops::RegistrySetting::new(&registry_ops::RegistryEntries::ForceInterval)
-            .last_data,
+        interval: REGISTRY_FORCE_INTERVAL.lock().unwrap().last_data.clone(),
+        ..Default::default()
     })?;
     info!("db items: {:?}", db.number_of_items.get());
     Ok(())
@@ -308,14 +318,12 @@ fn send_to_db() -> Result<()> {
 ///
 /// This function will return an error if there is a problem with the registry operations or
 /// sending inputs to the system.
+#[allow(clippy::missing_panics_doc)]
 pub fn idle_loop() -> Result<()> {
     debug!("Start idle time thread");
-    let mut registry_interval =
-        registry_ops::RegistrySetting::new(&registry_ops::RegistryEntries::ForceInterval);
-
     loop {
-        let _ = registry_interval.update_local_data();
-        let max_idle: u64 = match registry_interval.last_data.parse() {
+        let _ = REGISTRY_FORCE_INTERVAL.lock().unwrap().update_local_data();
+        let max_idle: u64 = match REGISTRY_FORCE_INTERVAL.lock().unwrap().last_data.parse() {
             Ok(data) => data,
             Err(err) => {
                 error!("Failed to parse force interval data with err: {err}");
@@ -336,6 +344,7 @@ pub fn idle_loop() -> Result<()> {
             send_mixed_input(&InputType::Mouse);
             if get_last_input() >= Some(idle_time) {
                 send_mixed_input(&InputType::Keyboard);
+                thread::sleep(Duration::from_secs(10));
             }
             if get_last_input() >= Some(idle_time) {
                 error!("Failed to reset idle time, skipping");
@@ -359,7 +368,7 @@ pub fn spawn_idle_threads() {
         }
     });
 
-    thread::spawn(move || unsafe {
+    thread::spawn(move || {
         win_mitigations::hide_current_thread_from_debuggers();
         info!("Spawn window status: {:?}", spawn_window());
     });

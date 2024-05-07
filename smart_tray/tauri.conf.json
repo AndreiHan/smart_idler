@@ -43,6 +43,18 @@
         "icons/icon.ico"
       ]
     },
+    "windows": [
+      {
+        "label": "controller",
+        "fullscreen": false,
+        "height": 425,
+        "resizable": true,
+        "title": "Controller",
+        "width": 900,
+        "center": true,
+        "focus": true
+      }
+    ],
     "security": {
       "csp": "default-src 'self'"
     }

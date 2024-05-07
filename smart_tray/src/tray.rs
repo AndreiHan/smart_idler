@@ -1,22 +1,24 @@
-use std::process;
+use std::{fmt, process};
 
+use anyhow::Result;
 use idler_utils::idler_win_utils;
 use tauri::{
-    AppHandle, CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem,
+    AppHandle, CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu,
+    SystemTrayMenuItem, UserAttentionType,
 };
 
-use crate::app_controller;
-
+#[derive(PartialEq)]
 pub enum IdlerMenuItems {
     Show,
     Quit,
 }
 
-impl ToString for IdlerMenuItems {
-    fn to_string(&self) -> String {
-        match self {
-            IdlerMenuItems::Show => "Show".to_owned(),
-            IdlerMenuItems::Quit => "Quit".to_owned(),
+impl fmt::Display for IdlerMenuItems {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self == &IdlerMenuItems::Show {
+            write!(f, "Show")
+        } else {
+            write!(f, "Quit")
         }
     }
 }
@@ -42,12 +44,51 @@ pub fn get_tray_menu() -> SystemTray {
     )
 }
 
+fn focus_window(app: &AppHandle) -> Result<()> {
+    let Some(window) = app.get_window("controller") else {
+        error!("Failed to get window");
+        return Err(anyhow::anyhow!("Failed to get window"));
+    };
+
+    let status = window.show();
+    trace!("Show status: {status:?}");
+    let status = window.set_focus();
+    trace!("Focus status: {status:?}");
+    let status = window.request_user_attention(Some(UserAttentionType::Informational));
+    trace!("User attention status: {status:?}");
+    Ok(())
+}
+
+fn create_window(app: &AppHandle) {
+    if let Some(window_config) = app.config().tauri.windows.first().cloned() {
+        match tauri::WindowBuilder::from_config(app, window_config).build() {
+            Ok(window) => match window.show() {
+                Ok(()) => {
+                    trace!("Window shown");
+                }
+                Err(err) => {
+                    error!("Failed to show window with err: {err}");
+                }
+            },
+            Err(err) => {
+                error!("Failed to create window with err: {err}");
+            }
+        }
+    } else {
+        error!("No window configuration found");
+    }
+}
+
 pub(crate) fn handle_system_tray_event(app: &AppHandle, event: SystemTrayEvent) {
     match event {
         SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
-            "Show" => {
-                app_controller::build_controller(app);
-            }
+            "Show" => match focus_window(app) {
+                Ok(()) => {}
+                Err(err) => {
+                    error!("Failed to focus window with err: {err}");
+                    create_window(app);
+                }
+            },
             "Quit" => {
                 idler_win_utils::ExecState::stop();
                 process::exit(0);
@@ -57,7 +98,13 @@ pub(crate) fn handle_system_tray_event(app: &AppHandle, event: SystemTrayEvent) 
             }
         },
         SystemTrayEvent::LeftClick { .. } | SystemTrayEvent::DoubleClick { .. } => {
-            app_controller::build_controller(app);
+            match focus_window(app) {
+                Ok(()) => {}
+                Err(err) => {
+                    error!("Failed to focus window with err: {err}");
+                    create_window(app);
+                }
+            }
         }
         _ => {}
     }

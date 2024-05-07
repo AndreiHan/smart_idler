@@ -4,10 +4,7 @@ use std::sync::atomic::Ordering;
 use anyhow::Result;
 use tauri::{command, State};
 
-use idler_utils::{
-    db_ops, registry_ops,
-    registry_ops::{RegistryEntries, RegistrySetting, RegistryState},
-};
+use idler_utils::{db_ops, registry_ops};
 
 use crate::app_controller;
 use crate::AppState;
@@ -100,7 +97,7 @@ pub fn get_state(state: State<AppState>, data: &str) -> bool {
     };
     let status = setting.update_local_data();
     trace!("Got state: {status:?}");
-    if setting.last_data == RegistryState::Enabled.to_string() {
+    if setting.is_enabled() {
         return true;
     }
     false
@@ -114,8 +111,6 @@ pub fn set_registry_state(state: State<AppState>, data: &str, wanted_status: boo
         warn!("Found incorrect data in request: {state:?}");
         return;
     };
-    let disabled = RegistryState::Disabled.to_string();
-    let enabled = RegistryState::Enabled.to_string();
     let mut setting = match setting.lock() {
         Ok(set) => set,
         Err(err) => {
@@ -124,25 +119,28 @@ pub fn set_registry_state(state: State<AppState>, data: &str, wanted_status: boo
         }
     };
     let status: Result<()> = if wanted_status {
-        setting.set_registry_data(&enabled)
+        setting.set_registry_data(&registry_ops::RegistryState::Enabled.to_string())
     } else {
-        setting.set_registry_data(&disabled)
+        setting.set_registry_data(&registry_ops::RegistryState::Disabled.to_string())
     };
     trace!("Set registry: {status:?}");
 }
 
 #[command(rename_all = "snake_case")]
-pub fn set_force_interval(interval: &str) {
-    let mut setting = RegistrySetting::new(&RegistryEntries::ForceInterval);
-    let status = setting.set_registry_data(interval);
+pub fn set_force_interval(state: State<AppState>, interval: &str) {
+    let status = state
+        .force_interval
+        .lock()
+        .unwrap()
+        .set_registry_data(interval);
     trace!("Set force interval: {status:?}");
 }
 
 #[command(rename_all = "snake_case")]
-pub fn tauri_get_db_count() -> Result<String, ()> {
-    if registry_ops::RegistrySetting::new(&registry_ops::RegistryEntries::LogStatistics).last_data
-        == registry_ops::RegistryState::Disabled.to_string()
-    {
+pub fn tauri_get_db_count(state: State<AppState>) -> Result<String, ()> {
+    let mut logging_state = state.logging.lock().unwrap();
+    let _ = logging_state.update_local_data();
+    if !logging_state.is_enabled() {
         return Ok(String::from("Disabled"));
     }
     let Some(db) = db_ops::RobotDatabase::new() else {
