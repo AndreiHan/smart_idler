@@ -1,9 +1,9 @@
 {
   "build": {
-    "beforeDevCommand": "",
-    "beforeBuildCommand": "",
-    "devPath": "ui/",
-    "distDir": "ui/",
+    "beforeDevCommand": "uglifyjs ./smart_tray/ui/template.js -o ./smart_tray/ui/main.js -c -m",
+    "beforeBuildCommand": "uglifyjs ./smart_tray/ui/template.js -o ./smart_tray/ui/main.js -c -m",
+    "devPath": ["ui/index.html", "ui/leaves.svg", "ui/styles.css", "ui/main.js"],
+    "distDir": ["ui/index.html", "ui/leaves.svg", "ui/styles.css", "ui/main.js"],
     "withGlobalTauri": true
   },
   "package": {
@@ -32,16 +32,8 @@
       }
     },
     "bundle": {
-      "active": true,
-      "targets": "all",
-      "identifier": "com.visual-idler.tray",
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ]
+      "active": false,
+      "identifier": "com.visual-idler.tray"
     },
     "windows": [
       {
@@ -52,7 +44,8 @@
         "title": "Controller",
         "width": 900,
         "center": true,
-        "focus": true
+        "focus": true,
+        "visible": false
       }
     ],
     "security": {
