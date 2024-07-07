@@ -11,7 +11,7 @@ rust-version = "1.78"
 license-file = "LICENSE"
 
 [workspace.dependencies]
-tauri = "1.6"
+tauri = "1.7"
 tauri-build = { version = "1.5", features = [] }
 log = "0.4"
 env_logger = "0.11"

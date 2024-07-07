@@ -29,6 +29,9 @@ tauri = { workspace = true, features = [
   "window-show",
   ]}
 
+clap = { version = "4.5", features = ["derive"] }
+const-random = { version = "0.1" }
+
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
 # DO NOT REMOVE!!

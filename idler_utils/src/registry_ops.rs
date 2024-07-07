@@ -1,4 +1,4 @@
-use std::{fmt, thread};
+use std::fmt;
 
 use anyhow::Result;
 use chrono::Local;
@@ -159,12 +159,10 @@ impl RegistrySetting {
 }
 
 fn create_app_key() {
-    thread::spawn(
-        || match windows_registry::LOCAL_MACHINE.create(APP_SUBKEY) {
-            Ok(val) => info!("Created {APP_SUBKEY}, val: {val:?}"),
-            Err(err) => error!("Failed to create {APP_SUBKEY} with err: {err}"),
-        },
-    );
+    match windows_registry::LOCAL_MACHINE.create(APP_SUBKEY) {
+        Ok(val) => info!("Created {APP_SUBKEY}, val: {val:?}"),
+        Err(err) => error!("Failed to create {APP_SUBKEY} with err: {err}"),
+    }
 }
 
 #[must_use]

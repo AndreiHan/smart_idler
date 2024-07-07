@@ -17,9 +17,11 @@ use tauri::{
 use idler_utils::{
     idler_win_utils,
     registry_ops::{RegistryEntries, RegistrySetting},
+    win_mitigations,
 };
 
 mod app_controller;
+mod cli;
 mod commands;
 mod tray;
 
@@ -43,12 +45,15 @@ impl Default for AppState {
 }
 
 fn main() -> Result<()> {
+    win_mitigations::apply_mitigations();
+
     if cfg!(debug_assertions) {
         env_logger::init_from_env(
             env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "debug"),
         );
     }
 
+    cli::parse_args();
     idler_win_utils::ExecState::start();
     idler_win_utils::spawn_idle_threads();
 

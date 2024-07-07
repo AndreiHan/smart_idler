@@ -1,4 +1,4 @@
-use std::{fmt, process};
+use std::fmt;
 
 use anyhow::Result;
 use idler_utils::idler_win_utils;
@@ -91,7 +91,7 @@ pub(crate) fn handle_system_tray_event(app: &AppHandle, event: SystemTrayEvent) 
             },
             "Quit" => {
                 idler_win_utils::ExecState::stop();
-                process::exit(0);
+                app.exit(0);
             }
             _ => {
                 warn!("Unknown menu item: {}", id);

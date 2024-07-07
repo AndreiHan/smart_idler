@@ -24,9 +24,9 @@ use windows::{
             },
             WindowsAndMessaging::{
                 CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, LoadCursorW,
-                RegisterClassW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, HWND_MESSAGE, IDC_ARROW,
-                MSG, PBT_APMQUERYSUSPEND, REGISTER_NOTIFICATION_FLAGS, WINDOW_EX_STYLE,
-                WM_POWERBROADCAST, WNDCLASSW, WS_OVERLAPPEDWINDOW,
+                RegisterClassW, CS_HREDRAW, CS_VREDRAW, HWND_MESSAGE, IDC_ARROW, MSG,
+                PBT_APMQUERYSUSPEND, REGISTER_NOTIFICATION_FLAGS, WINDOW_EX_STYLE, WINDOW_STYLE,
+                WM_POWERBROADCAST, WNDCLASSW,
             },
         },
     },
@@ -187,7 +187,6 @@ fn send_mixed_input(input_type: &InputType) {
 #[allow(clippy::missing_safety_doc)]
 pub fn spawn_window() -> Result<()> {
     let instance: HINSTANCE = unsafe { GetModuleHandleW(None) }?.into();
-    debug_assert!(instance.0 != 0);
 
     let window_class = w!("window");
 
@@ -205,20 +204,27 @@ pub fn spawn_window() -> Result<()> {
     debug_assert!(atom != 0);
 
     unsafe {
-        CreateWindowExW(
-            WINDOW_EX_STYLE::default(),
+        match CreateWindowExW(
+            WINDOW_EX_STYLE(0),
             window_class,
             w!("LsWindow"),
-            WS_OVERLAPPEDWINDOW,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
+            WINDOW_STYLE(0),
+            0,
+            0,
+            0,
+            0,
             HWND_MESSAGE,
             None,
             instance,
             None,
-        )
+        ) {
+            Ok(_) => {
+                info!("Window created");
+            }
+            Err(err) => {
+                error!("Failed to create window with err: {:?}", err);
+            }
+        }
     };
     let guid = GUID::from(MONITOR_GUID);
     match unsafe {
@@ -261,7 +267,7 @@ unsafe extern "system" fn wndproc(
                     &mut *(lparam.0 as *mut POWERBROADCAST_SETTING);
                 let guid = GUID::from(MONITOR_GUID);
                 if st.PowerSetting == guid && st.Data == [0] {
-                    thread::spawn(|| send_mixed_input);
+                    send_mixed_input(&InputType::Mouse);
                     let _ = REGISTRY_ROBOT_INPUT
                         .lock()
                         .unwrap()
@@ -271,7 +277,10 @@ unsafe extern "system" fn wndproc(
             LRESULT(0)
         }
         _ => {
-            debug!("{} - {:?} - {:?}", message, wparam, lparam);
+            debug!(
+                "msg-only message: {} - {:?} - {:?}",
+                message, wparam, lparam
+            );
             DefWindowProcW(window, message, wparam, lparam)
         }
     }
@@ -356,7 +365,6 @@ pub fn idle_loop() -> Result<()> {
 }
 
 pub fn spawn_idle_threads() {
-    win_mitigations::apply_mitigations();
     thread::spawn(move || {
         win_mitigations::hide_current_thread_from_debuggers();
         loop {

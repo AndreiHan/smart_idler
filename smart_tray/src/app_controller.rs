@@ -1,5 +1,6 @@
 use chrono::{Local, NaiveTime, TimeDelta};
 use idler_utils::idler_win_utils;
+use idler_utils::win_mitigations;
 use std::{
     process,
     sync::{
@@ -18,6 +19,7 @@ pub(crate) struct ControllerChannel {
 
 pub(crate) fn close_app_remote(rx: Receiver<String>) {
     thread::spawn(move || {
+        win_mitigations::hide_current_thread_from_debuggers();
         let mut _sender: Option<mpsc::Sender<()>> = None;
         loop {
             let hour = match rx.recv() {
@@ -37,6 +39,7 @@ pub(crate) fn close_app_remote(rx: Receiver<String>) {
             _sender = Some(sen);
 
             thread::spawn(move || loop {
+                win_mitigations::hide_current_thread_from_debuggers();
                 let now = Local::now().time();
                 let diff = if let Ok(dur) = received_time.signed_duration_since(now).to_std() {
                     dur
