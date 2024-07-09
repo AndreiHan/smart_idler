@@ -4,12 +4,8 @@ extern crate log;
 
 use anyhow::Result;
 
-use log::error;
 use serde::{Deserialize, Serialize};
-use std::sync::{
-    atomic::AtomicBool,
-    {mpsc, Mutex},
-};
+use std::sync::{atomic::AtomicBool, mpsc, Mutex};
 use tauri::{
     api::notification::Notification, generate_context, generate_handler, Builder, RunEvent,
 };
@@ -46,7 +42,6 @@ impl Default for AppState {
 
 fn main() -> Result<()> {
     win_mitigations::apply_mitigations();
-
     if cfg!(debug_assertions) {
         env_logger::init_from_env(
             env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "debug"),

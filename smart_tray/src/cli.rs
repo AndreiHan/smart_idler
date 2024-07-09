@@ -1,15 +1,15 @@
 use clap::Parser;
+use const_random::const_random;
 use idler_utils::win_mitigations;
 use std::process;
-use const_random::const_random;
 
 const COMPILE_RANDOM: u32 = const_random!(u32);
 
 #[derive(Parser, Debug)]
 #[command(version)]
 struct Args {
-    #[arg(short, long, default_value_t = String::from("none"))]
-    command: String,
+    #[arg(short, long, action)]
+    command: bool,
 }
 
 pub fn parse_args() {
@@ -17,11 +17,25 @@ pub fn parse_args() {
 
     info!("PID: {:?}", process::id());
 
-    let command = args.command.as_str();
-    if command == "none" {
-        let com = format!("-c \"{COMPILE_RANDOM}\"");
-        info!("Command: {:?}", com);
-        match win_mitigations::launch_new_instance(Some(com.as_str())) {
+    if args.command {
+        info!("Command received");
+        match win_mitigations::get_pipe_data() {
+            Ok(data) => {
+                info!("Data received: {:?}", data);
+                if data == COMPILE_RANDOM.to_string() {
+                    info!("Data matches");
+                } else {
+                    error!("Data does not match");
+                    process::exit(1);
+                }
+            }
+            Err(err) => {
+                error!("Failed to get data: {:?}", err);
+            }
+        }
+    } else {
+        info!("No command received");
+        match win_mitigations::launch_protected_instance(COMPILE_RANDOM.to_string().as_str()) {
             Ok(()) => {
                 info!("New instance started");
             }
@@ -30,13 +44,6 @@ pub fn parse_args() {
             }
         }
         info!("Exiting");
-        process::exit(0);
+        process::exit(1);
     }
-
-    if command == COMPILE_RANDOM.to_string().as_str() {
-        info!("Correct compile random: {:?}", command);
-        return;
-    }
-    error!("Invalid command: {:?}", args.command);
-    process::exit(1);
 }

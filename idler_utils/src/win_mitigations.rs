@@ -5,9 +5,16 @@ use windows::{
     core::{HSTRING, PCWSTR, PWSTR},
     Wdk::System::Threading::{NtSetInformationThread, ThreadHideFromDebugger},
     Win32::{
-        Foundation::GetLastError,
+        Foundation::{
+            CloseHandle, GetLastError, SetHandleInformation, BOOL, HANDLE, HANDLE_FLAGS,
+            HANDLE_FLAG_INHERIT,
+        },
+        Security::SECURITY_ATTRIBUTES,
+        Storage::FileSystem::{ReadFile, WriteFile},
         System::{
+            Console::{GetStdHandle, STD_INPUT_HANDLE},
             Memory::{GetProcessHeap, HeapAlloc, HEAP_ZERO_MEMORY},
+            Pipes::CreatePipe,
             SystemServices::{
                 PROCESS_MITIGATION_BINARY_SIGNATURE_POLICY, PROCESS_MITIGATION_DYNAMIC_CODE_POLICY,
                 SE_SIGNING_LEVEL_DYNAMIC_CODEGEN, SE_SIGNING_LEVEL_MICROSOFT,
@@ -17,7 +24,8 @@ use windows::{
                 InitializeProcThreadAttributeList, ProcessDynamicCodePolicy,
                 ProcessSignaturePolicy, SetProcessMitigationPolicy, UpdateProcThreadAttribute,
                 EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST, PROCESS_INFORMATION,
-                PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY, STARTUPINFOEXW, STARTUPINFOW_FLAGS,
+                PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY, STARTF_USESTDHANDLES, STARTUPINFOEXW,
+                STARTUPINFOW_FLAGS,
             },
         },
     },
@@ -62,6 +70,12 @@ fn enable_arbitrary_code_guard() {
         );
         info!("Set process mitigation policy status: {:?}", status);
     }
+}
+
+pub fn apply_mitigations() {
+    hide_current_thread_from_debuggers();
+    prevent_third_party_dll_loading();
+    enable_arbitrary_code_guard();
 }
 
 fn get_filename() -> Result<String> {
@@ -135,6 +149,12 @@ unsafe fn get_dll_attributes() -> Result<LPPROC_THREAD_ATTRIBUTE_LIST> {
     Ok(attributes)
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+struct SubProcessPipes {
+    h_childstd_in_read: HANDLE,
+    h_childstd_in_write: HANDLE,
+}
+
 /// Launches a new instance of an application with the specified command.
 ///
 /// # Arguments
@@ -152,18 +172,10 @@ unsafe fn get_dll_attributes() -> Result<LPPROC_THREAD_ATTRIBUTE_LIST> {
 /// * If retrieving the filename of the current executable fails.
 /// * If any system calls made within the function fail,
 /// such as those involved in setting up the process startup information or launching the new instance itself.
-pub fn launch_new_instance(command: Option<&str>) -> Result<()> {
+fn launch_new_instance(pipes: SubProcessPipes) -> Result<()> {
     let mut app_name = get_filename()?;
 
-    match command {
-        Some(command) => {
-            info!("Command: {:?}", command);
-            app_name = format!("\"{app_name}\" {command}");
-        }
-        None => {
-            error!("Command not provided");
-        }
-    }
+    app_name = format!("\"{app_name}\" -c");
     info!("App name: {:?}", app_name);
     let app_name_wide_ptr = HSTRING::from(app_name.clone())
         .as_wide()
@@ -178,6 +190,9 @@ pub fn launch_new_instance(command: Option<&str>) -> Result<()> {
         let attributes = get_dll_attributes()?;
         startup_info.lpAttributeList = attributes;
 
+        startup_info.StartupInfo.hStdInput = pipes.h_childstd_in_read;
+        startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+
         let mut process_info = PROCESS_INFORMATION::default();
 
         let status = match CreateProcessW(
@@ -185,7 +200,7 @@ pub fn launch_new_instance(command: Option<&str>) -> Result<()> {
             PWSTR::from_raw(app_name_wide_ptr),
             None,
             None,
-            false,
+            true,
             EXTENDED_STARTUPINFO_PRESENT,
             None,
             None,
@@ -202,12 +217,126 @@ pub fn launch_new_instance(command: Option<&str>) -> Result<()> {
             }
         };
         DeleteProcThreadAttributeList(attributes);
+
+        CloseHandle(process_info.hProcess)?;
+        CloseHandle(process_info.hThread)?;
+        CloseHandle(pipes.h_childstd_in_read)?;
         status
     }
 }
 
-pub fn apply_mitigations() {
-    hide_current_thread_from_debuggers();
-    prevent_third_party_dll_loading();
-    enable_arbitrary_code_guard();
+fn create_pipes() -> Result<SubProcessPipes> {
+    let security_attr = SECURITY_ATTRIBUTES {
+        nLength: u32::try_from(std::mem::size_of::<SECURITY_ATTRIBUTES>())?,
+        bInheritHandle: BOOL::from(true),
+        lpSecurityDescriptor: ptr::null_mut(),
+    };
+
+    let mut h_childstd_in_read = HANDLE::default();
+    let mut h_childstd_in_write = HANDLE::default();
+
+    unsafe {
+        if let Err(err) = CreatePipe(
+            &mut h_childstd_in_read,
+            &mut h_childstd_in_write,
+            Some(&security_attr),
+            0,
+        ) {
+            error!("Failed to create pipe: {:?}", err);
+            return Err(anyhow::anyhow!("Failed to create pipe"));
+        }
+
+        if let Err(err) =
+            SetHandleInformation(h_childstd_in_write, HANDLE_FLAG_INHERIT.0, HANDLE_FLAGS(0))
+        {
+            error!("Failed to set handle information: {:?}", err);
+            return Err(anyhow::anyhow!("Failed to set handle information"));
+        }
+    }
+
+    Ok(SubProcessPipes {
+        h_childstd_in_read,
+        h_childstd_in_write,
+    })
+}
+
+fn write_to_pipe(socket_handle: HANDLE, data: &str) -> Result<()> {
+    let mut dw_written: u32 = 0;
+    unsafe {
+        match WriteFile(
+            socket_handle,
+            Some(data.as_bytes()),
+            Some(&mut dw_written),
+            None,
+        ) {
+            Ok(()) => {
+                info!("Wrote to pipe: {:?}", data);
+            }
+            Err(err) => {
+                error!("Failed to write to pipe: {:?}", err);
+            }
+        }
+        CloseHandle(socket_handle)?;
+        Ok(())
+    }
+}
+
+/// Launches a protected instance of the application with the specified command and writes data to the pipe.
+///
+/// # Arguments
+///
+/// * `data` - The data to write to the pipe.
+///
+/// # Returns
+///
+/// A `Result` indicating the success or failure of launching the protected instance and writing to the pipe.
+///
+/// # Errors
+///
+/// This function will return an error in the following situations:
+///
+/// * If creating the pipes fails.
+/// * If launching the new instance fails.
+/// * If writing to the pipe fails.
+pub fn launch_protected_instance(data: &str) -> Result<()> {
+    let pipes = create_pipes()?;
+    launch_new_instance(pipes)?;
+    write_to_pipe(pipes.h_childstd_in_write, data)
+}
+
+/// Reads data from the pipe.
+///
+/// # Returns
+///
+/// A `Result` containing the data read from the pipe.
+///
+/// # Errors
+///
+/// This function will return an error if reading from the pipe fails.
+pub fn get_pipe_data() -> Result<String> {
+    unsafe {
+        let h_stdin = GetStdHandle(STD_INPUT_HANDLE)?;
+        if h_stdin.is_invalid() {
+            error!("Failed to get stdin handle: {:?}", GetLastError());
+            return Err(anyhow::anyhow!("Failed to get stdin handle"));
+        }
+
+        let mut in_buffer: [u8; 64] = [0; 64];
+        let mut dw_written: u32 = 0;
+        match ReadFile(h_stdin, Some(&mut in_buffer), Some(&mut dw_written), None) {
+            Ok(()) => {
+                let data = String::from_utf8(in_buffer.to_vec())?
+                    .trim_matches(char::from(0))
+                    .to_owned();
+                info!("Read from pipe: {data}");
+                let status = CloseHandle(h_stdin);
+                info!("Close stdin handle status: {:?}", status);
+                Ok(data)
+            }
+            Err(err) => {
+                error!("Failed to read from pipe: {:?}", err);
+                Err(anyhow::anyhow!("Failed to read from pipe"))
+            }
+        }
+    }
 }
