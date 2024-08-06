@@ -23,10 +23,11 @@ use windows::{
                 MOUSEINPUT, VK_ESCAPE,
             },
             WindowsAndMessaging::{
-                CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, LoadCursorW,
-                RegisterClassW, CS_HREDRAW, CS_VREDRAW, HWND_MESSAGE, IDC_ARROW, MSG,
-                PBT_APMQUERYSUSPEND, REGISTER_NOTIFICATION_FLAGS, WINDOW_EX_STYLE, WINDOW_STYLE,
-                WM_POWERBROADCAST, WNDCLASSW,
+                CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
+                LoadCursorW, RegisterClassW, TranslateMessage, UnregisterClassW, CS_HREDRAW,
+                CS_VREDRAW, HWND_MESSAGE, IDC_ARROW, MSG, PBT_APMQUERYSUSPEND,
+                REGISTER_NOTIFICATION_FLAGS, WINDOW_EX_STYLE, WINDOW_STYLE, WM_POWERBROADCAST,
+                WNDCLASSW,
             },
         },
     },
@@ -38,7 +39,63 @@ use crate::win_mitigations;
 
 static MONITOR_GUID: &str = "6FE69556-704A-47A0-8F24-C28D936FDA47";
 
-#[derive(Debug, PartialEq, Eq)]
+fn get_lazy_registry_setting(
+    data: registry_ops::RegistryEntries,
+) -> Mutex<registry_ops::RegistrySetting> {
+    Mutex::new(registry_ops::RegistrySetting::new(&data))
+}
+
+const MOUSE_INPUT: INPUT = INPUT {
+    r#type: INPUT_MOUSE,
+    Anonymous: INPUT_0 {
+        mi: MOUSEINPUT {
+            dx: 0,
+            dy: 0,
+            mouseData: 1,
+            dwFlags: MOUSEEVENTF_WHEEL,
+            time: 0,
+            dwExtraInfo: 0,
+        },
+    },
+};
+
+const KEYBOARD_INPUT: [INPUT; 2] = [
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VK_ESCAPE,
+                wScan: 1,
+                dwFlags: KEYBD_EVENT_FLAGS(0),
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    },
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VK_ESCAPE,
+                wScan: 1,
+                dwFlags: KEYEVENTF_KEYUP,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    },
+];
+
+static REGISTRY_LOG_STATISTICS: Lazy<Mutex<registry_ops::RegistrySetting>> =
+    Lazy::new(|| get_lazy_registry_setting(registry_ops::RegistryEntries::LogStatistics));
+
+static REGISTRY_ROBOT_INPUT: Lazy<Mutex<registry_ops::RegistrySetting>> =
+    Lazy::new(|| get_lazy_registry_setting(registry_ops::RegistryEntries::LastRobotInput));
+
+static REGISTRY_FORCE_INTERVAL: Lazy<Mutex<registry_ops::RegistrySetting>> =
+    Lazy::new(|| get_lazy_registry_setting(registry_ops::RegistryEntries::ForceInterval));
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum InputType {
     Mouse,
     Keyboard,
@@ -73,33 +130,7 @@ impl ExecState {
 }
 
 fn send_key_input() -> Result<()> {
-    let keys_list = [
-        INPUT {
-            r#type: INPUT_KEYBOARD,
-            Anonymous: INPUT_0 {
-                ki: KEYBDINPUT {
-                    wVk: VK_ESCAPE,
-                    wScan: 1,
-                    dwFlags: KEYBD_EVENT_FLAGS::default(),
-                    time: 0,
-                    dwExtraInfo: 0,
-                },
-            },
-        },
-        INPUT {
-            r#type: INPUT_KEYBOARD,
-            Anonymous: INPUT_0 {
-                ki: KEYBDINPUT {
-                    wVk: VK_ESCAPE,
-                    wScan: 1,
-                    dwFlags: KEYEVENTF_KEYUP,
-                    time: 0,
-                    dwExtraInfo: 0,
-                },
-            },
-        },
-    ];
-    for item in keys_list {
+    for item in KEYBOARD_INPUT {
         let value = unsafe { SendInput(&[item], size_of_val(&[item]).try_into()?) };
         if value == 1 {
             info!("Sent KeyboardInput");
@@ -112,22 +143,8 @@ fn send_key_input() -> Result<()> {
     Ok(())
 }
 
-fn send_mouse_input(wheel_movement: i32) -> Result<()> {
-    let input_struct: INPUT = INPUT {
-        r#type: INPUT_MOUSE,
-        Anonymous: INPUT_0 {
-            mi: MOUSEINPUT {
-                dx: 0,
-                dy: 0,
-                mouseData: wheel_movement.unsigned_abs(),
-                dwFlags: MOUSEEVENTF_WHEEL,
-                time: 0,
-                dwExtraInfo: 0,
-            },
-        },
-    };
-
-    if unsafe { SendInput(&[input_struct], size_of_val(&[input_struct]).try_into()?) } == 1 {
+fn send_mouse_input() -> Result<()> {
+    if unsafe { SendInput(&[MOUSE_INPUT], size_of_val(&[MOUSE_INPUT]).try_into()?) } == 1 {
         info!("Sent MouseInput");
         Ok(())
     } else {
@@ -137,19 +154,7 @@ fn send_mouse_input(wheel_movement: i32) -> Result<()> {
     }
 }
 
-static REGISTRY_LOG_STATISTICS: Lazy<Mutex<registry_ops::RegistrySetting>> = Lazy::new(|| {
-    Mutex::new(registry_ops::RegistrySetting::new(
-        &registry_ops::RegistryEntries::LogStatistics,
-    ))
-});
-
-static REGISTRY_ROBOT_INPUT: Lazy<Mutex<registry_ops::RegistrySetting>> = Lazy::new(|| {
-    Mutex::new(registry_ops::RegistrySetting::new(
-        &registry_ops::RegistryEntries::LastRobotInput,
-    ))
-});
-
-fn send_mixed_input(input_type: &InputType) {
+fn send_mixed_input(input_type: InputType) {
     let mut log_input = false;
     if REGISTRY_LOG_STATISTICS.lock().unwrap().is_enabled() {
         log_input = true;
@@ -168,15 +173,15 @@ fn send_mixed_input(input_type: &InputType) {
         debug!("Did not log input => Logging to db is disabled");
     }
 
-    if *input_type == InputType::Mouse {
-        let _ = send_mouse_input(1);
+    if input_type == InputType::Mouse {
+        let _ = send_mouse_input();
     } else {
         let _ = send_key_input();
     }
     let _ = REGISTRY_ROBOT_INPUT
         .lock()
         .unwrap()
-        .set_registry_data(&registry_ops::get_current_time());
+        .set_registry_data(registry_ops::get_current_time());
 }
 /// Spawns a new window.
 ///
@@ -203,6 +208,7 @@ pub fn spawn_window() -> Result<()> {
     let atom = unsafe { RegisterClassW(&wc) };
     debug_assert!(atom != 0);
 
+    let window_handle: HWND;
     unsafe {
         match CreateWindowExW(
             WINDOW_EX_STYLE(0),
@@ -218,11 +224,13 @@ pub fn spawn_window() -> Result<()> {
             instance,
             None,
         ) {
-            Ok(_) => {
+            Ok(hnd) => {
                 info!("Window created");
+                window_handle = hnd;
             }
             Err(err) => {
                 error!("Failed to create window with err: {:?}", err);
+                return Err(err.into());
             }
         }
     };
@@ -244,7 +252,16 @@ pub fn spawn_window() -> Result<()> {
 
     let mut message = MSG::default();
     while unsafe { GetMessageW(&mut message, None, 0, 0).into() } {
-        unsafe { DispatchMessageW(&message) };
+        unsafe {
+            if !TranslateMessage(&message).as_bool() {
+                continue;
+            }
+            DispatchMessageW(&message);
+        }
+    }
+    unsafe {
+        DestroyWindow(window_handle)?;
+        UnregisterClassW(window_class, instance)?;
     }
     Ok(())
 }
@@ -255,34 +272,29 @@ unsafe extern "system" fn wndproc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    match message {
-        PBT_APMQUERYSUSPEND => {
-            debug!("PBT_APMQUERYSUSPEND");
-            LRESULT(0)
-        }
-        WM_POWERBROADCAST => {
-            debug!("WM_POWERBROADCAST: {:?} - {:?}", wparam, lparam);
-            if wparam == WPARAM(32787) {
-                let st: &mut POWERBROADCAST_SETTING =
-                    &mut *(lparam.0 as *mut POWERBROADCAST_SETTING);
-                let guid = GUID::from(MONITOR_GUID);
-                if st.PowerSetting == guid && st.Data == [0] {
-                    send_mixed_input(&InputType::Mouse);
-                    let _ = REGISTRY_ROBOT_INPUT
-                        .lock()
-                        .unwrap()
-                        .set_registry_data(&registry_ops::get_current_time());
-                }
+    if message == PBT_APMQUERYSUSPEND {
+        debug!("PBT_APMQUERYSUSPEND");
+        LRESULT(0)
+    } else if message == WM_POWERBROADCAST {
+        debug!("WM_POWERBROADCAST: {:?} - {:?}", wparam, lparam);
+        if wparam == WPARAM(32787) {
+            let st: &mut POWERBROADCAST_SETTING = &mut *(lparam.0 as *mut POWERBROADCAST_SETTING);
+            let guid = GUID::from(MONITOR_GUID);
+            if st.PowerSetting == guid && st.Data == [0] {
+                send_mixed_input(InputType::Mouse);
+                let _ = REGISTRY_ROBOT_INPUT
+                    .lock()
+                    .unwrap()
+                    .set_registry_data(registry_ops::get_current_time());
             }
-            LRESULT(0)
         }
-        _ => {
-            debug!(
-                "msg-only message: {} - {:?} - {:?}",
-                message, wparam, lparam
-            );
-            DefWindowProcW(window, message, wparam, lparam)
-        }
+        LRESULT(0)
+    } else {
+        debug!(
+            "msg-only message: {} - {:?} - {:?}",
+            message, wparam, lparam
+        );
+        DefWindowProcW(window, message, wparam, lparam)
     }
 }
 
@@ -306,12 +318,6 @@ fn get_last_input() -> Option<u64> {
     Some(Duration::from_millis(total_ticks - u64::from(last_input.dwTime)).as_secs())
 }
 
-static REGISTRY_FORCE_INTERVAL: Lazy<Mutex<registry_ops::RegistrySetting>> = Lazy::new(|| {
-    Mutex::new(registry_ops::RegistrySetting::new(
-        &registry_ops::RegistryEntries::ForceInterval,
-    ))
-});
-
 fn send_to_db() -> Result<()> {
     let mut db = db_ops::RobotDatabase::new().context("Db is none")?;
     db.insert_to_db(&db_ops::RobotInput {
@@ -330,29 +336,46 @@ fn send_to_db() -> Result<()> {
 #[allow(clippy::missing_panics_doc)]
 pub fn idle_loop() -> Result<()> {
     debug!("Start idle time thread");
+
+    let mut max_idle: u64 = 0;
+    let mut same_data_runs: u32 = 0;
+
     loop {
-        let _ = REGISTRY_FORCE_INTERVAL.lock().unwrap().update_local_data();
-        let max_idle: u64 = match REGISTRY_FORCE_INTERVAL.lock().unwrap().last_data.parse() {
-            Ok(data) => data,
-            Err(err) => {
-                error!("Failed to parse force interval data with err: {err}");
-                thread::sleep(Duration::from_secs(60));
-                continue;
-            }
-        };
+        if same_data_runs >= 5 {
+            max_idle = match REGISTRY_FORCE_INTERVAL
+                .lock()
+                .unwrap()
+                .update_local_data()
+                .unwrap_or("0".to_string())
+                .parse()
+            {
+                Ok(data) => data,
+                Err(err) => {
+                    error!("Failed to parse force interval data with err: {err}");
+                    0
+                }
+            };
+            same_data_runs = 0;
+        }
 
         if max_idle < 60 {
-            info!("Force interval is less than 60 seconds, skipping");
-            thread::sleep(Duration::from_secs(60));
-            continue;
+            info!("Force interval is less than 60 seconds, setting to 60 seconds");
+            let status = REGISTRY_FORCE_INTERVAL
+                .lock()
+                .unwrap()
+                .set_registry_data("60".to_string());
+            if status.is_err() {
+                error!("Failed to set force interval to 60 seconds");
+            }
+            max_idle = 60;
         }
 
         let idle_time = get_last_input().unwrap_or(0);
         if idle_time >= (max_idle * 94 / 100) {
             ExecState::user_present();
-            send_mixed_input(&InputType::Mouse);
+            send_mixed_input(InputType::Mouse);
             if get_last_input() >= Some(idle_time) {
-                send_mixed_input(&InputType::Keyboard);
+                send_mixed_input(InputType::Keyboard);
                 thread::sleep(Duration::from_secs(10));
             }
             if get_last_input() >= Some(idle_time) {
@@ -366,6 +389,7 @@ pub fn idle_loop() -> Result<()> {
 
 pub fn spawn_idle_threads() {
     thread::spawn(move || {
+        thread::sleep(Duration::from_secs(60));
         win_mitigations::hide_current_thread_from_debuggers();
         loop {
             let status = idle_loop();
@@ -377,6 +401,7 @@ pub fn spawn_idle_threads() {
     });
 
     thread::spawn(move || {
+        thread::sleep(Duration::from_secs(60));
         win_mitigations::hide_current_thread_from_debuggers();
         info!("Spawn window status: {:?}", spawn_window());
     });

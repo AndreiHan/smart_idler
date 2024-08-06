@@ -30,7 +30,7 @@ impl From<RegistryState> for String {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Copy)]
 pub enum RegistryEntries {
     ForceInterval,
     LastRobotInput,
@@ -66,13 +66,14 @@ impl RegistrySetting {
         };
 
         let mut new_settings = RegistrySetting {
-            registry_entry: entry.clone(),
+            registry_entry: *entry,
             last_data: initial_data.clone(),
         };
 
         let status = new_settings.update_local_data();
         trace!("Got status: {status:?}");
-        if new_settings.last_data.is_empty() {
+
+        if status.is_err() {
             let status = new_settings.set_registry_data(&initial_data);
             trace!("Got status for updating registry data: {status:?}");
         }
@@ -106,7 +107,7 @@ impl RegistrySetting {
                     "Failed to get data from {}, with error {err:?}",
                     &self.registry_entry
                 );
-                self.set_registry_data(&self.last_data.clone())?;
+                self.set_registry_data(self.last_data.clone())?;
                 return Err(err.into());
             }
         };

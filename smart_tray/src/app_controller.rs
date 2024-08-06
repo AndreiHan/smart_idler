@@ -1,8 +1,8 @@
 use chrono::{Local, NaiveTime, TimeDelta};
+use idler_utils::cell_data;
 use idler_utils::idler_win_utils;
 use idler_utils::win_mitigations;
 use std::{
-    process,
     sync::{
         atomic::AtomicBool,
         mpsc::{self, Receiver, Sender, TryRecvError},
@@ -38,40 +38,47 @@ pub(crate) fn close_app_remote(rx: Receiver<String>) {
             let (sen, receiver) = mpsc::channel::<()>();
             _sender = Some(sen);
 
-            thread::spawn(move || loop {
+            thread::spawn(move || {
                 win_mitigations::hide_current_thread_from_debuggers();
-                let now = Local::now().time();
-                let diff = if let Ok(dur) = received_time.signed_duration_since(now).to_std() {
-                    dur
-                } else {
-                    let Some(current_diff) = now
-                        .signed_duration_since(received_time)
-                        .checked_add(&TimeDelta::days(1))
-                    else {
-                        error!("Failed to add 1 day to time");
-                        break;
+                loop {
+                    let now = Local::now().time();
+                    let diff = if let Ok(dur) = received_time.signed_duration_since(now).to_std() {
+                        dur
+                    } else {
+                        let Some(current_diff) = now
+                            .signed_duration_since(received_time)
+                            .checked_add(&TimeDelta::days(1))
+                        else {
+                            error!("Failed to add 1 day to time");
+                            break;
+                        };
+                        match current_diff.to_std() {
+                            Ok(d) => d,
+                            Err(err) => {
+                                error!("Err converting {current_diff} to std, err: {err}");
+                                break;
+                            }
+                        }
                     };
-                    match current_diff.to_std() {
-                        Ok(d) => d,
-                        Err(err) => {
-                            error!("Err converting {current_diff} to std, err: {err}");
+
+                    if diff.as_secs() == 0 {
+                        info!("Shutdown");
+                        idler_win_utils::ExecState::stop();
+                        let app_handle = cell_data::TAURI_APP_HANDLE.get().unwrap_or_else(|| {
+                            error!("Failed to get app handle");
+                            std::process::exit(0);
+                        });
+                        info!("Exiting app with app handle");
+                        app_handle.exit(0);
+                    }
+                    thread::sleep(Duration::from_millis(500));
+                    match receiver.try_recv() {
+                        Ok(()) | Err(TryRecvError::Disconnected) => {
+                            info!("Cancelling task for: {received_time}");
                             break;
                         }
+                        Err(TryRecvError::Empty) => {}
                     }
-                };
-
-                if diff.as_secs() == 0 {
-                    info!("Shutdown");
-                    idler_win_utils::ExecState::stop();
-                    process::exit(0);
-                }
-                thread::sleep(Duration::from_millis(500));
-                match receiver.try_recv() {
-                    Ok(()) | Err(TryRecvError::Disconnected) => {
-                        info!("Cancelling task for: {received_time}");
-                        break;
-                    }
-                    Err(TryRecvError::Empty) => {}
                 }
             });
             thread::sleep(Duration::from_millis(500));

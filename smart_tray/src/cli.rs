@@ -35,15 +35,17 @@ pub fn parse_args() {
         }
     } else {
         info!("No command received");
+        let mut exit_code = 0;
         match win_mitigations::launch_protected_instance(COMPILE_RANDOM.to_string().as_str()) {
             Ok(()) => {
                 info!("New instance started");
             }
             Err(err) => {
                 error!("Failed to start new instance: {:?}", err);
+                exit_code = 1;
             }
         }
         info!("Exiting");
-        process::exit(1);
+        process::exit(exit_code);
     }
 }

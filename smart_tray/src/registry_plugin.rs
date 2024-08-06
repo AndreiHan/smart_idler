@@ -1,13 +1,42 @@
 #![allow(clippy::needless_pass_by_value)]
-use std::sync::atomic::Ordering;
+use tauri::{
+    command,
+    plugin::{Builder, TauriPlugin},
+    Manager, Runtime, State,
+};
 
 use anyhow::Result;
-use tauri::{command, State};
+use serde::{Deserialize, Serialize};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    mpsc, Mutex,
+};
 
-use idler_utils::{db_ops, registry_ops};
+use idler_utils::{
+    db_ops,
+    registry_ops::{RegistryEntries, RegistrySetting, RegistryState},
+};
 
 use crate::app_controller;
-use crate::AppState;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AppState {
+    force_interval: Mutex<RegistrySetting>,
+    robot_input: Mutex<RegistrySetting>,
+    logging: Mutex<RegistrySetting>,
+    shutdown: Mutex<RegistrySetting>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        AppState {
+            force_interval: Mutex::new(RegistrySetting::new(&RegistryEntries::ForceInterval)),
+            robot_input: Mutex::new(RegistrySetting::new(&RegistryEntries::LastRobotInput)),
+            logging: Mutex::new(RegistrySetting::new(&RegistryEntries::LogStatistics)),
+            shutdown: Mutex::new(RegistrySetting::new(&RegistryEntries::ShutdownTime)),
+        }
+    }
+}
 
 #[command(rename_all = "snake_case")]
 pub fn get_shutdown_state(channel: State<app_controller::ControllerChannel>) -> bool {
@@ -119,9 +148,9 @@ pub fn set_registry_state(state: State<AppState>, data: &str, wanted_status: boo
         }
     };
     let status: Result<()> = if wanted_status {
-        setting.set_registry_data(&registry_ops::RegistryState::Enabled.to_string())
+        setting.set_registry_data(RegistryState::Enabled.to_string())
     } else {
-        setting.set_registry_data(&registry_ops::RegistryState::Disabled.to_string())
+        setting.set_registry_data(RegistryState::Disabled.to_string())
     };
     trace!("Set registry: {status:?}");
 }
@@ -148,4 +177,31 @@ pub fn tauri_get_db_count(state: State<AppState>) -> Result<String, ()> {
         return Err(());
     };
     Ok(db.number_of_items.get().to_string())
+}
+
+pub fn init<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("general")
+        .setup(|app_handle| {
+            let (tx, rx) = mpsc::channel();
+            let tx = Mutex::new(tx);
+            app_controller::close_app_remote(rx);
+
+            app_handle.manage(AppState::default());
+            app_handle.manage(app_controller::ControllerChannel {
+                tx,
+                active: AtomicBool::new(false),
+            });
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            get_data,
+            get_state,
+            set_registry_state,
+            set_force_interval,
+            tauri_get_db_count,
+            get_shutdown_clock,
+            get_shutdown_state,
+            set_shutdown
+        ])
+        .build()
 }

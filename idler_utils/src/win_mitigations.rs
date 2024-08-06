@@ -35,6 +35,10 @@ const PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON:
     0x0000_0001_u64 << 44;
 
 pub fn hide_current_thread_from_debuggers() {
+    if cfg!(debug_assertions) {
+        info!("[DEBUG-MODE] NOT SETTING anti debug status");
+        return;
+    }
     unsafe {
         let status =
             NtSetInformationThread(GetCurrentThread(), ThreadHideFromDebugger, ptr::null(), 0);
@@ -171,16 +175,13 @@ struct SubProcessPipes {
 ///
 /// * If retrieving the filename of the current executable fails.
 /// * If any system calls made within the function fail,
-/// such as those involved in setting up the process startup information or launching the new instance itself.
+///   such as those involved in setting up the process startup information or launching the new instance itself.
 fn launch_new_instance(pipes: SubProcessPipes) -> Result<()> {
     let mut app_name = get_filename()?;
 
     app_name = format!("\"{app_name}\" -c");
     info!("App name: {:?}", app_name);
-    let app_name_wide_ptr = HSTRING::from(app_name.clone())
-        .as_wide()
-        .as_ptr()
-        .cast_mut();
+    let app_name_wide_ptr = HSTRING::from(app_name.clone());
 
     unsafe {
         let mut startup_info = STARTUPINFOEXW::default();
@@ -197,7 +198,7 @@ fn launch_new_instance(pipes: SubProcessPipes) -> Result<()> {
 
         let status = match CreateProcessW(
             PCWSTR::null(),
-            PWSTR::from_raw(app_name_wide_ptr),
+            PWSTR::from_raw(app_name_wide_ptr.as_wide().as_ptr().cast_mut()),
             None,
             None,
             true,

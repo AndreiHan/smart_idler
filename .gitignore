@@ -10,3 +10,4 @@ package-lock.json
 .eslintrc.json
 flamegraph.svg
 smart_tray/ui/main.js
+smart_tray/ui/main.js

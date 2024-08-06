@@ -11,16 +11,8 @@ serde = { workspace = true, features = ["derive"] }
 anyhow = { workspace = true }
 chrono = { workspace = true }
 once_cell = { workspace = true }
-
-rusqlite = { version = "0.31", features = ["bundled"] }
-rand = { version = "0.8"}
-
-[dependencies.windows-registry]
-version = "0.2"
-
-[dependencies.windows]
-version = "0.58"
-features = [
+tauri = { workspace = true }
+windows = { workspace = true, features = [
   "Win32_System_LibraryLoader",
   "Win32_Foundation",
   "Win32_UI_WindowsAndMessaging",
@@ -42,8 +34,14 @@ features = [
   "Win32_System_Memory",
   "Win32_System_Pipes",
   "Win32_Storage_FileSystem",
-  "Win32_System_IO"
-]
+  "Win32_System_IO",
+] }
+
+rusqlite = { version = "0.32", features = ["bundled"] }
+rand = { version = "0.8" }
+
+[dependencies.windows-registry]
+version = "0.2"
 
 [lints]
 workspace = true

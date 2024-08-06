@@ -1,7 +1,7 @@
 use std::fmt;
 
 use anyhow::Result;
-use idler_utils::idler_win_utils;
+use idler_utils::{cell_data, idler_win_utils};
 use tauri::{
     AppHandle, CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu,
     SystemTrayMenuItem, UserAttentionType,
@@ -91,7 +91,12 @@ pub(crate) fn handle_system_tray_event(app: &AppHandle, event: SystemTrayEvent) 
             },
             "Quit" => {
                 idler_win_utils::ExecState::stop();
-                app.exit(0);
+                let app_handle = cell_data::TAURI_APP_HANDLE.get().unwrap_or_else(|| {
+                    error!("Failed to get app handle");
+                    std::process::exit(0);
+                });
+                info!("Exiting app with app handle");
+                app_handle.exit(0);
             }
             _ => {
                 warn!("Unknown menu item: {}", id);

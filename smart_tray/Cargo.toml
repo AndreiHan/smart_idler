@@ -10,6 +10,7 @@ rust-version.workspace = true
 
 [build-dependencies]
 tauri-build = { workspace = true }
+tauri-winres = "0.1"
 
 [dependencies]
 idler_utils = { path = "../idler_utils" }
@@ -20,6 +21,8 @@ env_logger = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }
 once_cell = { workspace = true }
+msvc_spectre_libs = { workspace = true }
+link-cplusplus = { workspace = true }
 tauri = { workspace = true, features = [
   "system-tray",
   "shell-open",
@@ -27,7 +30,7 @@ tauri = { workspace = true, features = [
   "window-close",
   "window-hide",
   "window-show",
-  ]}
+] }
 
 clap = { version = "4.5", features = ["derive"] }
 const-random = { version = "0.1" }
@@ -39,3 +42,7 @@ custom-protocol = ["tauri/custom-protocol"]
 
 [lints]
 workspace = true
+
+[package.metadata.tauri-winres]
+LegalCopyright = "©2024 SI"
+OriginalFilename = "tray.exe"

@@ -7,12 +7,12 @@ const LOADING_TEXT = "Loading...";
 const DEFAULT_SHUTDOWN_TIME = "19:00";
 const STOP_TIME = "STOP";
 const SUCCESSFUL_MESSAGE = "SUCCESSFUL";
-const SHUTDOWN_CLOCK_ID = "get_shutdown_clock";
-const SHUTDOWN_STATE_ID = "get_shutdown_state";
-const SET_SHUTDOWN_ID = "set_shutdown";
-const SET_FORCE_INTERVAL_ID = "set_force_interval";
-const SET_REGISTRY_STATE_ID = "set_registry_state";
-const GET_STATE_ID = "get_state";
+const SHUTDOWN_CLOCK_ID = "plugin:general|get_shutdown_clock";
+const SHUTDOWN_STATE_ID = "plugin:general|get_shutdown_state";
+const SET_SHUTDOWN_ID = "plugin:general|set_shutdown";
+const SET_FORCE_INTERVAL_ID = "plugin:general|set_force_interval";
+const SET_REGISTRY_STATE_ID = "plugin:general|set_registry_state";
+const GET_STATE_ID = "plugin:general|get_state";
 
 //---Default values
 const DEFAULT_MINIMUM_INTERVAL = 60;
@@ -31,9 +31,9 @@ const DOM_ELEMENTS = {
 //---Table refresh
 
 const refreshTableList = [
-  ["robot-inputs", "tauri_get_db_count"],
-  ["current-interval", "get_data", "force_interval"],
-  ["last-input", "get_data", "robot_input"],
+  ["robot-inputs", "plugin:general|tauri_get_db_count"],
+  ["current-interval", "plugin:general|get_data", "force_interval"],
+  ["last-input", "plugin:general|get_data", "robot_input"],
 ];
 
 function refreshStatsTable() {

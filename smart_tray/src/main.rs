@@ -1,80 +1,41 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+extern crate link_cplusplus;
+extern crate msvc_spectre_libs;
+
 #[macro_use]
 extern crate log;
 
 use anyhow::Result;
-
-use serde::{Deserialize, Serialize};
-use std::sync::{atomic::AtomicBool, mpsc, Mutex};
-use tauri::{
-    api::notification::Notification, generate_context, generate_handler, Builder, RunEvent,
-};
-
-use idler_utils::{
-    idler_win_utils,
-    registry_ops::{RegistryEntries, RegistrySetting},
-    win_mitigations,
-};
+use idler_utils::{cell_data, idler_win_utils, win_mitigations};
+use tauri::{generate_context, Builder, RunEvent};
 
 mod app_controller;
 mod cli;
-mod commands;
+mod registry_plugin;
 mod tray;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct AppState {
-    force_interval: Mutex<RegistrySetting>,
-    robot_input: Mutex<RegistrySetting>,
-    logging: Mutex<RegistrySetting>,
-    shutdown: Mutex<RegistrySetting>,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        AppState {
-            force_interval: Mutex::new(RegistrySetting::new(&RegistryEntries::ForceInterval)),
-            robot_input: Mutex::new(RegistrySetting::new(&RegistryEntries::LastRobotInput)),
-            logging: Mutex::new(RegistrySetting::new(&RegistryEntries::LogStatistics)),
-            shutdown: Mutex::new(RegistrySetting::new(&RegistryEntries::ShutdownTime)),
-        }
-    }
-}
-
 fn main() -> Result<()> {
+    idler_win_utils::ExecState::start();
     win_mitigations::apply_mitigations();
     if cfg!(debug_assertions) {
         env_logger::init_from_env(
-            env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "debug"),
+            env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "trace"),
         );
     }
 
     cli::parse_args();
-    idler_win_utils::ExecState::start();
     idler_win_utils::spawn_idle_threads();
 
-    let (tx, rx) = mpsc::channel();
-    let tx = Mutex::new(tx);
-    app_controller::close_app_remote(rx);
-
     let tauri_app = Builder::default()
-        .manage(AppState::default())
-        .manage(app_controller::ControllerChannel {
-            tx,
-            active: AtomicBool::new(false),
-        })
-        .invoke_handler(generate_handler![
-            commands::get_data,
-            commands::get_state,
-            commands::set_registry_state,
-            commands::set_force_interval,
-            commands::tauri_get_db_count,
-            commands::get_shutdown_clock,
-            commands::get_shutdown_state,
-            commands::set_shutdown
-        ])
+        .plugin(registry_plugin::init())
         .system_tray(tray::get_tray_menu())
         .on_system_tray_event(move |app, event| {
             tray::handle_system_tray_event(app, event);
+        })
+        .setup(|app| {
+            let app_handle = app.handle();
+            let _ = cell_data::TAURI_APP_HANDLE.set(app_handle);
+            Ok(())
         })
         .build(generate_context!("tauri.conf.json"));
 
@@ -85,20 +46,21 @@ fn main() -> Result<()> {
             return Err(err.into());
         }
     }
-    .run(move |app_handle, event| match event {
+    .run(move |_, event| match event {
         RunEvent::Ready => {
-            let identifier = app_handle.config().tauri.bundle.identifier.clone();
-            let status = Notification::new(identifier)
-                .title("Smart Idler")
-                .body("Smart Idler has started")
-                .show();
-            trace!("Notification status: {status:?}");
+            info!("App is ready");
         }
         RunEvent::ExitRequested { api, .. } => {
             api.prevent_exit();
         }
         RunEvent::Exit => {
             idler_win_utils::ExecState::stop();
+            let app_handle = cell_data::TAURI_APP_HANDLE.get().unwrap_or_else(|| {
+                error!("Failed to get app handle");
+                std::process::exit(0);
+            });
+            info!("Exiting app with app handle");
+            app_handle.exit(0);
         }
         _ => {}
     });
