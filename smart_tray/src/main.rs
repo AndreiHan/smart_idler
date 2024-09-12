@@ -23,7 +23,9 @@ fn main() -> Result<()> {
         );
     }
 
-    cli::parse_args();
+    if !cfg!(debug_assertions) {
+        cli::parse_args();
+    }
     idler_win_utils::spawn_idle_threads();
 
     let tauri_app = Builder::default()

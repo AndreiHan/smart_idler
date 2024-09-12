@@ -85,7 +85,7 @@ pub fn apply_mitigations() {
 fn get_filename() -> Result<String> {
     match env::current_exe() {
         Ok(path) => {
-            if let Some(name) = path.file_name() {
+            if let Ok(name) = path.canonicalize() {
                 if let Some(name) = name.to_str() {
                     Ok(name.to_owned())
                 } else {
@@ -93,7 +93,7 @@ fn get_filename() -> Result<String> {
                     Err(anyhow::anyhow!("Failed to get current exe path"))
                 }
             } else {
-                error!("Failed to get current exe path: {:?}", path);
+                error!("Failed to canonicalize current exe path: {:?}", path);
                 Err(anyhow::anyhow!("Failed to get current exe path"))
             }
         }
@@ -177,11 +177,8 @@ struct SubProcessPipes {
 /// * If any system calls made within the function fail,
 ///   such as those involved in setting up the process startup information or launching the new instance itself.
 fn launch_new_instance(pipes: SubProcessPipes) -> Result<()> {
-    let mut app_name = get_filename()?;
-
-    app_name = format!("\"{app_name}\" -c");
-    info!("App name: {:?}", app_name);
-    let app_name_wide_ptr = HSTRING::from(app_name.clone());
+    let app_name = HSTRING::from(format!("\"{}\" -c", get_filename()?));
+    info!("App name: {app_name}");
 
     unsafe {
         let mut startup_info = STARTUPINFOEXW::default();
@@ -198,7 +195,7 @@ fn launch_new_instance(pipes: SubProcessPipes) -> Result<()> {
 
         let status = match CreateProcessW(
             PCWSTR::null(),
-            PWSTR::from_raw(app_name_wide_ptr.as_wide().as_ptr().cast_mut()),
+            PWSTR::from_raw(app_name.as_ptr().cast_mut().cast()),
             None,
             None,
             true,

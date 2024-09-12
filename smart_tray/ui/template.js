@@ -111,8 +111,7 @@ DOM_ELEMENTS.clockStatus.addEventListener("click", () => {
   }
 });
 
-//-Submit button
-DOM_ELEMENTS.submitIntervalBtn.addEventListener("click", async () => {
+async function update_interval() {
   const textbox = DOM_ELEMENTS.intervalData;
   if (isNaN(textbox.value) || textbox.value < DEFAULT_MINIMUM_INTERVAL) {
     textbox.placeholder = INVALID_DATA_MESSAGE;
@@ -124,6 +123,17 @@ DOM_ELEMENTS.submitIntervalBtn.addEventListener("click", async () => {
     textbox.placeholder = SUCCESSFUL_MESSAGE;
     textbox.value = "";
     refreshStatsTable();
+  }
+}
+
+//-Submit button
+DOM_ELEMENTS.submitIntervalBtn.addEventListener("click", update_interval);
+
+//-Data Field
+DOM_ELEMENTS.intervalData.addEventListener("keypress", async (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    DOM_ELEMENTS.submitIntervalBtn.click();
   }
 });
 

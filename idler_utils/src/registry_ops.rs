@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use windows_registry;
 
 const APP_SUBKEY: &str = "SOFTWARE\\SmartIdler";
-const SLEEP_TIME_SECONDS: u64 = 0;
+const SLEEP_TIME_SECONDS: u64 = 60;
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum RegistryState {
@@ -70,7 +70,7 @@ impl RegistrySetting {
             last_data: initial_data.clone(),
         };
 
-        let status = new_settings.update_local_data();
+        let status = new_settings.update_local_from_registry();
         trace!("Got status: {status:?}");
 
         if status.is_err() {
@@ -85,7 +85,7 @@ impl RegistrySetting {
     /// # Errors
     ///
     /// Returns an error if there is a problem opening the app key or getting the data from the registry.
-    pub fn update_local_data(&mut self) -> Result<String> {
+    pub fn update_local_from_registry(&mut self) -> Result<String> {
         let app_key = match windows_registry::LOCAL_MACHINE.open(APP_SUBKEY) {
             Ok(e) => e,
             Err(err) => {

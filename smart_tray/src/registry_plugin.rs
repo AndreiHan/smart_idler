@@ -6,37 +6,15 @@ use tauri::{
 };
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     mpsc, Mutex,
 };
 
-use idler_utils::{
-    db_ops,
-    registry_ops::{RegistryEntries, RegistrySetting, RegistryState},
-};
+use idler_utils::{db_ops, registry_ops::RegistryState};
 
 use crate::app_controller;
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct AppState {
-    force_interval: Mutex<RegistrySetting>,
-    robot_input: Mutex<RegistrySetting>,
-    logging: Mutex<RegistrySetting>,
-    shutdown: Mutex<RegistrySetting>,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        AppState {
-            force_interval: Mutex::new(RegistrySetting::new(&RegistryEntries::ForceInterval)),
-            robot_input: Mutex::new(RegistrySetting::new(&RegistryEntries::LastRobotInput)),
-            logging: Mutex::new(RegistrySetting::new(&RegistryEntries::LogStatistics)),
-            shutdown: Mutex::new(RegistrySetting::new(&RegistryEntries::ShutdownTime)),
-        }
-    }
-}
+use crate::cell_data;
 
 #[command(rename_all = "snake_case")]
 pub fn get_shutdown_state(channel: State<app_controller::ControllerChannel>) -> bool {
@@ -44,26 +22,20 @@ pub fn get_shutdown_state(channel: State<app_controller::ControllerChannel>) -> 
 }
 
 #[command(rename_all = "snake_case")]
-pub fn get_shutdown_clock(state: State<AppState>) -> String {
-    let mut setting = match state.shutdown.lock() {
+pub fn get_shutdown_clock() -> String {
+    let setting = match cell_data::REGISTRY_SHUTDOWN_TIME.lock() {
         Ok(h) => h,
         Err(err) => {
             error!("Failed to lock shutdown with err: {err}");
             return String::new();
         }
     };
-
-    let status = setting.update_local_data();
-    trace!("Got shutdown status: {status:?}");
+    trace!("Got shutdown status: {:?}", setting);
     setting.last_data.to_string()
 }
 
 #[command(rename_all = "snake_case")]
-pub fn set_shutdown(
-    channel_state: State<app_controller::ControllerChannel>,
-    app_state: State<AppState>,
-    hour: &str,
-) {
+pub fn set_shutdown(channel_state: State<app_controller::ControllerChannel>, hour: &str) {
     let tx = match channel_state.tx.lock() {
         Ok(val) => val,
         Err(err) => {
@@ -76,7 +48,7 @@ pub fn set_shutdown(
 
     channel_state.active.store(hour != "STOP", Ordering::SeqCst);
 
-    let mut setting = match app_state.shutdown.lock() {
+    let mut setting = match cell_data::REGISTRY_SHUTDOWN_TIME.lock() {
         Ok(set) => set,
         Err(err) => {
             error!("Failed to lock app_state.shutdown, err: {err}");
@@ -88,44 +60,42 @@ pub fn set_shutdown(
 }
 
 #[command(rename_all = "snake_case")]
-pub fn get_data(state: State<AppState>, data: &str) -> String {
+pub fn get_data(data: &str) -> String {
     let setting = match data {
-        "force_interval" => &state.force_interval,
-        "robot_input" => &state.robot_input,
+        "force_interval" => &cell_data::REGISTRY_FORCE_INTERVAL,
+        "robot_input" => &cell_data::REGISTRY_ROBOT_INPUT,
         _ => {
             warn!("Found invalid data in request: {data}");
             return String::new();
         }
     };
-    let mut setting = match setting.lock() {
+    let setting = match setting.lock() {
         Ok(set) => set,
         Err(err) => {
-            error!("Failed to get state: {state:?} with err: {err}");
+            error!("Failed to get state: {data:?} with err: {err}");
             return String::new();
         }
     };
-    let status = setting.update_local_data();
-    trace!("Got status: {status:?}");
+    trace!("Got data: {:?}", setting);
     setting.last_data.to_string()
 }
 
 #[command(rename_all = "snake_case")]
-pub fn get_state(state: State<AppState>, data: &str) -> bool {
+pub fn get_state(data: &str) -> bool {
     let setting = if data == "logging" {
-        &state.logging
+        &cell_data::REGISTRY_LOG_STATISTICS
     } else {
-        warn!("Found invalid data in request: {state:?}");
+        warn!("Found invalid data in request: {data:?}");
         return false;
     };
-    let mut setting = match setting.lock() {
+    let setting = match setting.lock() {
         Ok(set) => set,
         Err(err) => {
-            error!("Failed to get state: {state:?} with err: {err}");
+            error!("Failed to get state: {data:?} with err: {err}");
             return false;
         }
     };
-    let status = setting.update_local_data();
-    trace!("Got state: {status:?}");
+    trace!("Got state: {:?}", setting);
     if setting.is_enabled() {
         return true;
     }
@@ -133,17 +103,17 @@ pub fn get_state(state: State<AppState>, data: &str) -> bool {
 }
 
 #[command(rename_all = "snake_case")]
-pub fn set_registry_state(state: State<AppState>, data: &str, wanted_status: bool) {
+pub fn set_registry_state(data: &str, wanted_status: bool) {
     let setting = if data == "logging" {
-        &state.logging
+        &cell_data::REGISTRY_LOG_STATISTICS
     } else {
-        warn!("Found incorrect data in request: {state:?}");
+        warn!("Found incorrect data in request: {data:?}");
         return;
     };
     let mut setting = match setting.lock() {
         Ok(set) => set,
         Err(err) => {
-            error!("Failed to get state: {state:?} with err: {err}");
+            error!("Failed to get state: {data:?} with err: {err}");
             return;
         }
     };
@@ -156,19 +126,17 @@ pub fn set_registry_state(state: State<AppState>, data: &str, wanted_status: boo
 }
 
 #[command(rename_all = "snake_case")]
-pub fn set_force_interval(state: State<AppState>, interval: &str) {
-    let status = state
-        .force_interval
+pub fn set_force_interval(interval: &str) {
+    let status = cell_data::REGISTRY_FORCE_INTERVAL
         .lock()
         .unwrap()
         .set_registry_data(interval);
-    trace!("Set force interval: {status:?}");
+    trace!("Set force interval: {status:?}, data: {interval:?}");
 }
 
 #[command(rename_all = "snake_case")]
-pub fn tauri_get_db_count(state: State<AppState>) -> Result<String, ()> {
-    let mut logging_state = state.logging.lock().unwrap();
-    let _ = logging_state.update_local_data();
+pub fn tauri_get_db_count() -> Result<String, ()> {
+    let logging_state = cell_data::REGISTRY_LOG_STATISTICS.lock().unwrap();
     if !logging_state.is_enabled() {
         return Ok(String::from("Disabled"));
     }
@@ -186,7 +154,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             let tx = Mutex::new(tx);
             app_controller::close_app_remote(rx);
 
-            app_handle.manage(AppState::default());
             app_handle.manage(app_controller::ControllerChannel {
                 tx,
                 active: AtomicBool::new(false),

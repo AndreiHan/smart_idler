@@ -1,7 +1,6 @@
-use std::{mem::size_of_val, sync::Mutex, thread, time::Duration};
+use std::{mem::size_of_val, thread, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
-use once_cell::sync::Lazy;
 
 use windows::{
     core::{w, GUID},
@@ -33,17 +32,12 @@ use windows::{
     },
 };
 
+use crate::cell_data;
 use crate::db_ops;
-use crate::registry_ops;
+use crate::registry_ops::get_current_time;
 use crate::win_mitigations;
 
 static MONITOR_GUID: &str = "6FE69556-704A-47A0-8F24-C28D936FDA47";
-
-fn get_lazy_registry_setting(
-    data: registry_ops::RegistryEntries,
-) -> Mutex<registry_ops::RegistrySetting> {
-    Mutex::new(registry_ops::RegistrySetting::new(&data))
-}
 
 const MOUSE_INPUT: INPUT = INPUT {
     r#type: INPUT_MOUSE,
@@ -85,15 +79,6 @@ const KEYBOARD_INPUT: [INPUT; 2] = [
         },
     },
 ];
-
-static REGISTRY_LOG_STATISTICS: Lazy<Mutex<registry_ops::RegistrySetting>> =
-    Lazy::new(|| get_lazy_registry_setting(registry_ops::RegistryEntries::LogStatistics));
-
-static REGISTRY_ROBOT_INPUT: Lazy<Mutex<registry_ops::RegistrySetting>> =
-    Lazy::new(|| get_lazy_registry_setting(registry_ops::RegistryEntries::LastRobotInput));
-
-static REGISTRY_FORCE_INTERVAL: Lazy<Mutex<registry_ops::RegistrySetting>> =
-    Lazy::new(|| get_lazy_registry_setting(registry_ops::RegistryEntries::ForceInterval));
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum InputType {
@@ -155,12 +140,11 @@ fn send_mouse_input() -> Result<()> {
 }
 
 fn send_mixed_input(input_type: InputType) {
-    let mut log_input = false;
-    if REGISTRY_LOG_STATISTICS.lock().unwrap().is_enabled() {
-        log_input = true;
-    }
-
-    if log_input {
+    if cell_data::REGISTRY_LOG_STATISTICS
+        .lock()
+        .unwrap()
+        .is_enabled()
+    {
         match send_to_db() {
             Ok(()) => {
                 debug!("Logged input");
@@ -178,10 +162,10 @@ fn send_mixed_input(input_type: InputType) {
     } else {
         let _ = send_key_input();
     }
-    let _ = REGISTRY_ROBOT_INPUT
+    let _ = cell_data::REGISTRY_ROBOT_INPUT
         .lock()
         .unwrap()
-        .set_registry_data(registry_ops::get_current_time());
+        .set_registry_data(get_current_time());
 }
 /// Spawns a new window.
 ///
@@ -282,10 +266,10 @@ unsafe extern "system" fn wndproc(
             let guid = GUID::from(MONITOR_GUID);
             if st.PowerSetting == guid && st.Data == [0] {
                 send_mixed_input(InputType::Mouse);
-                let _ = REGISTRY_ROBOT_INPUT
+                let _ = cell_data::REGISTRY_ROBOT_INPUT
                     .lock()
                     .unwrap()
-                    .set_registry_data(registry_ops::get_current_time());
+                    .set_registry_data(get_current_time());
             }
         }
         LRESULT(0)
@@ -321,7 +305,11 @@ fn get_last_input() -> Option<u64> {
 fn send_to_db() -> Result<()> {
     let mut db = db_ops::RobotDatabase::new().context("Db is none")?;
     db.insert_to_db(&db_ops::RobotInput {
-        interval: REGISTRY_FORCE_INTERVAL.lock().unwrap().last_data.clone(),
+        interval: cell_data::REGISTRY_FORCE_INTERVAL
+            .lock()
+            .unwrap()
+            .last_data
+            .clone(),
         ..Default::default()
     })?;
     info!("db items: {:?}", db.number_of_items.get());
@@ -338,15 +326,16 @@ pub fn idle_loop() -> Result<()> {
     debug!("Start idle time thread");
 
     let mut max_idle: u64 = 0;
-    let mut same_data_runs: u32 = 0;
+    let mut same_data_runs: u32 = 6;
 
     loop {
-        if same_data_runs >= 5 {
-            max_idle = match REGISTRY_FORCE_INTERVAL
+        debug!("Same data runs: {same_data_runs}");
+        if same_data_runs >= 6 {
+            debug!("Same data runs exceeded, resetting max_idle");
+            max_idle = match cell_data::REGISTRY_FORCE_INTERVAL
                 .lock()
                 .unwrap()
-                .update_local_data()
-                .unwrap_or("0".to_string())
+                .last_data
                 .parse()
             {
                 Ok(data) => data,
@@ -357,10 +346,12 @@ pub fn idle_loop() -> Result<()> {
             };
             same_data_runs = 0;
         }
+        same_data_runs += 1;
+        debug!("Max idle: {max_idle}");
 
         if max_idle < 60 {
             info!("Force interval is less than 60 seconds, setting to 60 seconds");
-            let status = REGISTRY_FORCE_INTERVAL
+            let status = cell_data::REGISTRY_FORCE_INTERVAL
                 .lock()
                 .unwrap()
                 .set_registry_data("60".to_string());

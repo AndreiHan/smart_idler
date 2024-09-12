@@ -12,6 +12,7 @@ struct Args {
     command: bool,
 }
 
+#[allow(dead_code)]
 pub fn parse_args() {
     let args = Args::parse();
 

@@ -32,8 +32,9 @@ strip = "symbols"
 
 [profile.dev]
 panic = "abort"
-codegen-units = 1
-lto = "fat"
+overflow-checks = true
+incremental = true
+debug = 2
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
