@@ -1,7 +1,4 @@
 use chrono::{Local, NaiveTime, TimeDelta};
-use idler_utils::cell_data;
-use idler_utils::idler_win_utils;
-use idler_utils::win_mitigations;
 use std::{
     sync::{
         atomic::AtomicBool,
@@ -11,15 +8,16 @@ use std::{
     thread,
     time::Duration,
 };
+use tracing::{debug, error, info};
 
-pub(crate) struct ControllerChannel {
-    pub(crate) tx: Mutex<Sender<String>>,
-    pub(crate) active: AtomicBool,
+pub struct ControllerChannel {
+    pub tx: Mutex<Sender<String>>,
+    pub active: AtomicBool,
 }
 
-pub(crate) fn close_app_remote(rx: Receiver<String>) {
+pub fn close_app_remote(rx: Receiver<String>) {
     thread::spawn(move || {
-        win_mitigations::hide_current_thread_from_debuggers();
+        mitigations::hide_current_thread_from_debuggers();
         let mut _sender: Option<mpsc::Sender<()>> = None;
         loop {
             let hour = match rx.recv() {
@@ -39,7 +37,7 @@ pub(crate) fn close_app_remote(rx: Receiver<String>) {
             _sender = Some(sen);
 
             thread::spawn(move || {
-                win_mitigations::hide_current_thread_from_debuggers();
+                mitigations::hide_current_thread_from_debuggers();
                 loop {
                     let now = Local::now().time();
                     let diff = if let Ok(dur) = received_time.signed_duration_since(now).to_std() {
@@ -63,7 +61,7 @@ pub(crate) fn close_app_remote(rx: Receiver<String>) {
 
                     if diff.as_secs() == 0 {
                         info!("Shutdown");
-                        idler_win_utils::ExecState::stop();
+                        idler_utils::ExecState::stop();
                         let app_handle = cell_data::TAURI_APP_HANDLE.get().unwrap_or_else(|| {
                             error!("Failed to get app handle");
                             std::process::exit(0);

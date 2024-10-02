@@ -4,6 +4,7 @@ use tauri::{
     plugin::{Builder, TauriPlugin},
     Manager, Runtime, State,
 };
+use tracing::{debug, error, trace, warn};
 
 use anyhow::Result;
 use std::sync::{
@@ -11,10 +12,7 @@ use std::sync::{
     mpsc, Mutex,
 };
 
-use idler_utils::{db_ops, registry_ops::RegistryState};
-
-use crate::app_controller;
-use crate::cell_data;
+use registry_ops::RegistryState;
 
 #[command(rename_all = "snake_case")]
 pub fn get_shutdown_state(channel: State<app_controller::ControllerChannel>) -> bool {
@@ -134,19 +132,6 @@ pub fn set_force_interval(interval: &str) {
     trace!("Set force interval: {status:?}, data: {interval:?}");
 }
 
-#[command(rename_all = "snake_case")]
-pub fn tauri_get_db_count() -> Result<String, ()> {
-    let logging_state = cell_data::REGISTRY_LOG_STATISTICS.lock().unwrap();
-    if !logging_state.is_enabled() {
-        return Ok(String::from("Disabled"));
-    }
-    let Some(db) = db_ops::RobotDatabase::new() else {
-        error!("Failed to get db with");
-        return Err(());
-    };
-    Ok(db.number_of_items.get().to_string())
-}
-
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("general")
         .setup(|app_handle| {
@@ -165,7 +150,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             get_state,
             set_registry_state,
             set_force_interval,
-            tauri_get_db_count,
             get_shutdown_clock,
             get_shutdown_state,
             set_shutdown

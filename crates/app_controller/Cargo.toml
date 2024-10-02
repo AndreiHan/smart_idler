@@ -1,0 +1,17 @@
+[package]
+name = "app_controller"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[dependencies]
+cell_data = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+mitigations = { workspace = true }
+idler_utils = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,9 +1,8 @@
-use std::fmt;
-
 use anyhow::Result;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use windows_registry;
+use std::fmt;
+use tracing::{debug, error, info, trace};
 
 const APP_SUBKEY: &str = "SOFTWARE\\SmartIdler";
 const SLEEP_TIME_SECONDS: u64 = 60;

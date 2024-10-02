@@ -1,0 +1,15 @@
+[package]
+name = "cell_data"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[dependencies]
+registry_ops = { workspace = true }
+tauri = { workspace = true }
+once_cell = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,19 @@
+[package]
+name = "registry_ops"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[dependencies]
+chrono = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+
+[dependencies.windows-registry]
+version = "0.3"
+
+[lints]
+workspace = true

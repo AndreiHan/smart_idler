@@ -17,10 +17,6 @@ const GET_STATE_ID = "plugin:general|get_state";
 //---Default values
 const DEFAULT_MINIMUM_INTERVAL = 60;
 
-const CHECKBOX_LIST = [["log-toggle", "logging"]];
-
-const CHECKBOX_SETTINGS_LIST = [["log-toggle", "logging"]];
-
 const DOM_ELEMENTS = {
   clockValue: document.getElementById("timed-input"),
   clockStatus: document.getElementById("timed-stop"),
@@ -31,7 +27,6 @@ const DOM_ELEMENTS = {
 //---Table refresh
 
 const refreshTableList = [
-  ["robot-inputs", "plugin:general|tauri_get_db_count"],
   ["current-interval", "plugin:general|get_data", "force_interval"],
   ["last-input", "plugin:general|get_data", "robot_input"],
 ];
@@ -54,27 +49,11 @@ function refreshTableElement(tableElement) {
   });
 }
 
-//---Checkbox refresh
-
-function refreshAllCheckboxes() {
-  Promise.all(CHECKBOX_LIST.map(refreshCheckbox));
-}
-
-function refreshCheckbox(checkboxElement) {
-  const checkbox = document.getElementById(checkboxElement[0]);
-  checkbox.checked = false;
-  // eslint-disable-next-line github/no-then
-  invoke(GET_STATE_ID, { data: checkboxElement[1] }).then((input) => {
-    checkbox.checked = input;
-  });
-}
-
 //---Event Listeners
 
 //-On Load
 window.addEventListener("DOMContentLoaded", () => {
   refreshStatsTable();
-  refreshAllCheckboxes();
 
   //-Shutdown load
   // eslint-disable-next-line github/no-then
@@ -136,25 +115,3 @@ DOM_ELEMENTS.intervalData.addEventListener("keypress", async (event) => {
     DOM_ELEMENTS.submitIntervalBtn.click();
   }
 });
-
-//-Checkboxes
-
-for (const checkbox of CHECKBOX_SETTINGS_LIST) {
-  setEventListener(checkbox);
-}
-
-function setEventListener(checkbox) {
-  const startupCheckbox = document.getElementById(checkbox[0]);
-  startupCheckbox.addEventListener("click", () => {
-    if (document.getElementById(checkbox[0]).checked) {
-      // eslint-disable-next-line camelcase
-      invoke(SET_REGISTRY_STATE_ID, { data: checkbox[1], wanted_status: true });
-    } else {
-      invoke(SET_REGISTRY_STATE_ID, {
-        data: checkbox[1],
-        // eslint-disable-next-line camelcase
-        wanted_status: false,
-      });
-    }
-  });
-}

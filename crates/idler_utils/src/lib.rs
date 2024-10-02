@@ -1,6 +1,7 @@
 use std::{mem::size_of_val, thread, time::Duration};
+use tracing::{debug, error, info};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 
 use windows::{
     core::{w, GUID},
@@ -32,10 +33,7 @@ use windows::{
     },
 };
 
-use crate::cell_data;
-use crate::db_ops;
-use crate::registry_ops::get_current_time;
-use crate::win_mitigations;
+use registry_ops::get_current_time;
 
 static MONITOR_GUID: &str = "6FE69556-704A-47A0-8F24-C28D936FDA47";
 
@@ -140,23 +138,6 @@ fn send_mouse_input() -> Result<()> {
 }
 
 fn send_mixed_input(input_type: InputType) {
-    if cell_data::REGISTRY_LOG_STATISTICS
-        .lock()
-        .unwrap()
-        .is_enabled()
-    {
-        match send_to_db() {
-            Ok(()) => {
-                debug!("Logged input");
-            }
-            Err(err) => {
-                error!("Failed to log input with err: {:?}", err);
-            }
-        }
-    } else {
-        debug!("Did not log input => Logging to db is disabled");
-    }
-
     if input_type == InputType::Mouse {
         let _ = send_mouse_input();
     } else {
@@ -302,19 +283,6 @@ fn get_last_input() -> Option<u64> {
     Some(Duration::from_millis(total_ticks - u64::from(last_input.dwTime)).as_secs())
 }
 
-fn send_to_db() -> Result<()> {
-    let mut db = db_ops::RobotDatabase::new().context("Db is none")?;
-    db.insert_to_db(&db_ops::RobotInput {
-        interval: cell_data::REGISTRY_FORCE_INTERVAL
-            .lock()
-            .unwrap()
-            .last_data
-            .clone(),
-        ..Default::default()
-    })?;
-    info!("db items: {:?}", db.number_of_items.get());
-    Ok(())
-}
 /// The main idle loop.
 ///
 /// # Errors
@@ -380,8 +348,8 @@ pub fn idle_loop() -> Result<()> {
 
 pub fn spawn_idle_threads() {
     thread::spawn(move || {
-        thread::sleep(Duration::from_secs(60));
-        win_mitigations::hide_current_thread_from_debuggers();
+        mitigations::hide_current_thread_from_debuggers();
+        thread::sleep(Duration::from_secs(10));
         loop {
             let status = idle_loop();
             if status.is_err() {
@@ -392,8 +360,7 @@ pub fn spawn_idle_threads() {
     });
 
     thread::spawn(move || {
-        thread::sleep(Duration::from_secs(60));
-        win_mitigations::hide_current_thread_from_debuggers();
-        info!("Spawn window status: {:?}", spawn_window());
+        mitigations::hide_current_thread_from_debuggers();
+        let _ = spawn_window();
     });
 }

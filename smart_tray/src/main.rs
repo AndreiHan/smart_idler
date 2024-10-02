@@ -1,32 +1,21 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-extern crate link_cplusplus;
 extern crate msvc_spectre_libs;
 
-#[macro_use]
-extern crate log;
+use tracing::{error, info};
 
 use anyhow::Result;
-use idler_utils::{cell_data, idler_win_utils, win_mitigations};
 use tauri::{generate_context, Builder, RunEvent};
 
-mod app_controller;
-mod cli;
 mod registry_plugin;
 mod tray;
 
-fn main() -> Result<()> {
-    idler_win_utils::ExecState::start();
-    win_mitigations::apply_mitigations();
-    if cfg!(debug_assertions) {
-        env_logger::init_from_env(
-            env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "trace"),
-        );
-    }
-
-    if !cfg!(debug_assertions) {
-        cli::parse_args();
-    }
-    idler_win_utils::spawn_idle_threads();
+#[tokio::main]
+async fn main() -> Result<()> {
+    #[cfg(debug_assertions)]
+    tauri::async_runtime::set(tokio::runtime::Handle::current());
+    let _ = tracing_subscriber::fmt::try_init();
+    idler_utils::ExecState::start();
+    mitigations::apply_mitigations().await;
 
     let tauri_app = Builder::default()
         .plugin(registry_plugin::init())
@@ -51,12 +40,13 @@ fn main() -> Result<()> {
     .run(move |_, event| match event {
         RunEvent::Ready => {
             info!("App is ready");
+            idler_utils::spawn_idle_threads();
         }
         RunEvent::ExitRequested { api, .. } => {
             api.prevent_exit();
         }
         RunEvent::Exit => {
-            idler_win_utils::ExecState::stop();
+            idler_utils::ExecState::stop();
             let app_handle = cell_data::TAURI_APP_HANDLE.get().unwrap_or_else(|| {
                 error!("Failed to get app handle");
                 std::process::exit(0);
