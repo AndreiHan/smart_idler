@@ -1,6 +1,5 @@
 use std::sync::{LazyLock, Mutex};
 
-use crate::registry_ops;
 use once_cell::sync::OnceCell;
 use tauri::AppHandle;
 

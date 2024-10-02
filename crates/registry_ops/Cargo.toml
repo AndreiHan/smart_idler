@@ -1,17 +1,16 @@
 [package]
-name = "idler_utils"
+name = "registry_ops"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license-file.workspace = true
 
 [dependencies]
-log = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-anyhow = { workspace = true }
 chrono = { workspace = true }
-once_cell = { workspace = true }
-tauri = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 windows = { workspace = true, features = [
   "Win32_System_LibraryLoader",
   "Win32_Foundation",
@@ -36,9 +35,6 @@ windows = { workspace = true, features = [
   "Win32_Storage_FileSystem",
   "Win32_System_IO",
 ] }
-
-rusqlite = { version = "0.32", features = ["bundled"] }
-rand = { version = "0.8" }
 
 [dependencies.windows-registry]
 version = "0.2"

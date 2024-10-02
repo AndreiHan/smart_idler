@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::{env, mem, os::raw::c_void, ptr};
+use tracing::{error, info};
 
 use windows::{
     core::{HSTRING, PCWSTR, PWSTR},
@@ -47,6 +48,7 @@ pub fn hide_current_thread_from_debuggers() {
 }
 
 fn prevent_third_party_dll_loading() {
+    info!("Preventing third party dll loading");
     let mut policy = PROCESS_MITIGATION_BINARY_SIGNATURE_POLICY::default();
     policy.Anonymous.Flags = SE_SIGNING_LEVEL_MICROSOFT;
     policy.Anonymous.Anonymous._bitfield = 1;
@@ -62,6 +64,10 @@ fn prevent_third_party_dll_loading() {
 }
 
 fn enable_arbitrary_code_guard() {
+    if cfg!(debug_assertions) {
+        info!("[DEBUG-MODE] NOT PREVENTING third party dll loading");
+        return;
+    }
     let mut policy = PROCESS_MITIGATION_DYNAMIC_CODE_POLICY::default();
     policy.Anonymous.Flags = SE_SIGNING_LEVEL_DYNAMIC_CODEGEN;
     policy.Anonymous.Anonymous._bitfield = 1;
@@ -76,10 +82,23 @@ fn enable_arbitrary_code_guard() {
     }
 }
 
-pub fn apply_mitigations() {
-    hide_current_thread_from_debuggers();
-    prevent_third_party_dll_loading();
-    enable_arbitrary_code_guard();
+pub async fn apply_mitigations() {
+    let (send, recv) = tokio::sync::oneshot::channel();
+    rayon::spawn(move || {
+        hide_current_thread_from_debuggers();
+        prevent_third_party_dll_loading();
+        enable_arbitrary_code_guard();
+        let _ = send.send(());
+    });
+
+    match recv.await {
+        Ok(()) => {
+            info!("Mitigations applied");
+        }
+        Err(err) => {
+            error!("Failed to apply mitigations: {:?}", err);
+        }
+    }
 }
 
 fn get_filename() -> Result<String> {

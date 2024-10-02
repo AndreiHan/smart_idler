@@ -1,7 +1,7 @@
 {
   "build": {
-    "beforeDevCommand": "uglifyjs ./smart_tray/ui/template.js -o ./smart_tray/ui/main.js -c -m --warn",
-    "beforeBuildCommand": "uglifyjs ./smart_tray/ui/template.js -o ./smart_tray/ui/main.js -c -m --warn",
+    "beforeDevCommand": "terser ./smart_tray/ui/template.js -o ./smart_tray/ui/main.js -c -m --warn",
+    "beforeBuildCommand": "terser ./smart_tray/ui/template.js -o ./smart_tray/ui/main.js -c -m --warn",
     "devPath": ["ui/index.html", "ui/leaves.svg", "ui/styles.css", "ui/main.js"],
     "distDir": ["ui/index.html", "ui/leaves.svg", "ui/styles.css", "ui/main.js"],
     "withGlobalTauri": true
