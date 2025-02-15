@@ -127,12 +127,7 @@ unsafe fn get_dll_attributes() -> Result<LPPROC_THREAD_ATTRIBUTE_LIST> {
     let mut attribute_size = usize::default();
 
     // The first call returns an error, this is intentional
-    let _ = InitializeProcThreadAttributeList(
-        LPPROC_THREAD_ATTRIBUTE_LIST(ptr::null_mut()),
-        1,
-        0,
-        &mut attribute_size,
-    );
+    let _ = InitializeProcThreadAttributeList(None, 1, None, &mut attribute_size);
 
     let attributes = LPPROC_THREAD_ATTRIBUTE_LIST(HeapAlloc(
         GetProcessHeap()?,
@@ -140,7 +135,7 @@ unsafe fn get_dll_attributes() -> Result<LPPROC_THREAD_ATTRIBUTE_LIST> {
         attribute_size,
     ));
 
-    match InitializeProcThreadAttributeList(attributes, 1, 0, &mut attribute_size) {
+    match InitializeProcThreadAttributeList(Some(attributes), 1, None, &mut attribute_size) {
         Ok(()) => {
             info!("Initialized attribute list");
         }
@@ -214,7 +209,7 @@ fn launch_new_instance(pipes: SubProcessPipes) -> Result<()> {
 
         let status = match CreateProcessW(
             PCWSTR::null(),
-            PWSTR::from_raw(app_name.as_ptr().cast_mut().cast()),
+            Some(PWSTR::from_raw(app_name.as_ptr().cast_mut().cast())),
             None,
             None,
             true,

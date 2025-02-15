@@ -1,4 +1,4 @@
-use std::{mem::size_of_val, thread, time::Duration};
+use std::{mem::size_of_val, sync::LazyLock, thread, time::Duration};
 use tracing::{debug, error, info};
 
 use anyhow::{anyhow, Result};
@@ -35,7 +35,8 @@ use windows::{
 
 use registry_ops::get_current_time;
 
-static MONITOR_GUID: &str = "6FE69556-704A-47A0-8F24-C28D936FDA47";
+static MONITOR_GUID: LazyLock<GUID> =
+    LazyLock::new(|| GUID::try_from("6FE69556-704A-47A0-8F24-C28D936FDA47").unwrap());
 
 const MOUSE_INPUT: INPUT = INPUT {
     r#type: INPUT_MOUSE,
@@ -184,9 +185,9 @@ pub fn spawn_window() -> Result<()> {
             0,
             0,
             0,
-            HWND_MESSAGE,
+            Some(HWND_MESSAGE),
             None,
-            instance,
+            Some(instance),
             None,
         ) {
             Ok(hnd) => {
@@ -199,11 +200,10 @@ pub fn spawn_window() -> Result<()> {
             }
         }
     };
-    let guid = GUID::from(MONITOR_GUID);
     match unsafe {
         RegisterPowerSettingNotification(
             GetCurrentProcess(),
-            std::ptr::from_ref(&guid),
+            std::ptr::from_ref(&MONITOR_GUID),
             REGISTER_NOTIFICATION_FLAGS(0),
         )
     } {
@@ -226,7 +226,7 @@ pub fn spawn_window() -> Result<()> {
     }
     unsafe {
         DestroyWindow(window_handle)?;
-        UnregisterClassW(window_class, instance)?;
+        UnregisterClassW(window_class, Some(instance))?;
     }
     Ok(())
 }
@@ -244,8 +244,7 @@ unsafe extern "system" fn wndproc(
         debug!("WM_POWERBROADCAST: {:?} - {:?}", wparam, lparam);
         if wparam == WPARAM(32787) {
             let st: &mut POWERBROADCAST_SETTING = &mut *(lparam.0 as *mut POWERBROADCAST_SETTING);
-            let guid = GUID::from(MONITOR_GUID);
-            if st.PowerSetting == guid && st.Data == [0] {
+            if st.PowerSetting == *MONITOR_GUID && st.Data == [0] {
                 send_mixed_input(InputType::Mouse);
                 let _ = cell_data::REGISTRY_ROBOT_INPUT
                     .lock()
