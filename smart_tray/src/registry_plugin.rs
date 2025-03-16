@@ -1,15 +1,15 @@
 #![allow(clippy::needless_pass_by_value)]
 use tauri::{
-    command,
+    Manager, Runtime, State, command,
     plugin::{Builder, TauriPlugin},
-    Manager, Runtime, State,
 };
 use tracing::{debug, error, trace, warn};
 
 use anyhow::Result;
 use std::sync::{
+    Mutex,
     atomic::{AtomicBool, Ordering},
-    mpsc, Mutex,
+    mpsc,
 };
 
 use registry_ops::RegistryState;

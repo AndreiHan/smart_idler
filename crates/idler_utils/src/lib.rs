@@ -1,36 +1,35 @@
 use std::{mem::size_of_val, sync::LazyLock, thread, time::Duration};
 use tracing::{debug, error, info};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 use windows::{
-    core::{w, GUID},
     Win32::{
-        Foundation::{GetLastError, BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
+        Foundation::{GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
         System::{
             LibraryLoader::GetModuleHandleW,
             Power::{
-                RegisterPowerSettingNotification, SetThreadExecutionState, ES_CONTINUOUS,
-                ES_DISPLAY_REQUIRED, ES_SYSTEM_REQUIRED, ES_USER_PRESENT, POWERBROADCAST_SETTING,
+                ES_CONTINUOUS, ES_DISPLAY_REQUIRED, ES_SYSTEM_REQUIRED, ES_USER_PRESENT,
+                POWERBROADCAST_SETTING, RegisterPowerSettingNotification, SetThreadExecutionState,
             },
             SystemInformation::GetTickCount64,
             Threading::GetCurrentProcess,
         },
         UI::{
             Input::KeyboardAndMouse::{
-                GetLastInputInfo, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE,
-                KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, LASTINPUTINFO, MOUSEEVENTF_WHEEL,
-                MOUSEINPUT, VK_ESCAPE,
+                GetLastInputInfo, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBD_EVENT_FLAGS,
+                KEYBDINPUT, KEYEVENTF_KEYUP, LASTINPUTINFO, MOUSEEVENTF_WHEEL, MOUSEINPUT,
+                SendInput, VK_ESCAPE,
             },
             WindowsAndMessaging::{
-                CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
-                LoadCursorW, RegisterClassW, TranslateMessage, UnregisterClassW, CS_HREDRAW,
-                CS_VREDRAW, HWND_MESSAGE, IDC_ARROW, MSG, PBT_APMQUERYSUSPEND,
-                REGISTER_NOTIFICATION_FLAGS, WINDOW_EX_STYLE, WINDOW_STYLE, WM_POWERBROADCAST,
-                WNDCLASSW,
+                CS_HREDRAW, CS_VREDRAW, CreateWindowExW, DefWindowProcW, DestroyWindow,
+                DispatchMessageW, GetMessageW, HWND_MESSAGE, IDC_ARROW, LoadCursorW, MSG,
+                PBT_APMQUERYSUSPEND, REGISTER_NOTIFICATION_FLAGS, RegisterClassW, TranslateMessage,
+                UnregisterClassW, WINDOW_EX_STYLE, WINDOW_STYLE, WM_POWERBROADCAST, WNDCLASSW,
             },
         },
     },
+    core::{BOOL, GUID, w},
 };
 
 use registry_ops::get_current_time;
@@ -243,7 +242,8 @@ unsafe extern "system" fn wndproc(
     } else if message == WM_POWERBROADCAST {
         debug!("WM_POWERBROADCAST: {:?} - {:?}", wparam, lparam);
         if wparam == WPARAM(32787) {
-            let st: &mut POWERBROADCAST_SETTING = &mut *(lparam.0 as *mut POWERBROADCAST_SETTING);
+            let st: &mut POWERBROADCAST_SETTING =
+                unsafe { &mut *(lparam.0 as *mut POWERBROADCAST_SETTING) };
             if st.PowerSetting == *MONITOR_GUID && st.Data == [0] {
                 send_mixed_input(InputType::Mouse);
                 let _ = cell_data::REGISTRY_ROBOT_INPUT
@@ -258,7 +258,7 @@ unsafe extern "system" fn wndproc(
             "msg-only message: {} - {:?} - {:?}",
             message, wparam, lparam
         );
-        DefWindowProcW(window, message, wparam, lparam)
+        unsafe { DefWindowProcW(window, message, wparam, lparam) }
     }
 }
 

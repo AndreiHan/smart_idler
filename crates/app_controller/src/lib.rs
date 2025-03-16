@@ -1,9 +1,9 @@
 use chrono::{Local, NaiveTime, TimeDelta};
 use std::{
     sync::{
+        Mutex,
         atomic::AtomicBool,
         mpsc::{self, Receiver, Sender, TryRecvError},
-        Mutex,
     },
     thread,
     time::Duration,

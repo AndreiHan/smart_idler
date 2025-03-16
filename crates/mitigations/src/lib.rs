@@ -3,33 +3,33 @@ use std::{env, mem, os::raw::c_void, ptr};
 use tracing::{error, info};
 
 use windows::{
-    core::{HSTRING, PCWSTR, PWSTR},
     Wdk::System::Threading::{NtSetInformationThread, ThreadHideFromDebugger},
     Win32::{
         Foundation::{
-            CloseHandle, GetLastError, SetHandleInformation, BOOL, HANDLE, HANDLE_FLAGS,
-            HANDLE_FLAG_INHERIT,
+            CloseHandle, GetLastError, HANDLE, HANDLE_FLAG_INHERIT, HANDLE_FLAGS,
+            SetHandleInformation,
         },
         Security::SECURITY_ATTRIBUTES,
         Storage::FileSystem::{ReadFile, WriteFile},
         System::{
             Console::{GetStdHandle, STD_INPUT_HANDLE},
-            Memory::{GetProcessHeap, HeapAlloc, HEAP_ZERO_MEMORY},
+            Memory::{GetProcessHeap, HEAP_ZERO_MEMORY, HeapAlloc},
             Pipes::CreatePipe,
             SystemServices::{
                 PROCESS_MITIGATION_BINARY_SIGNATURE_POLICY, PROCESS_MITIGATION_DYNAMIC_CODE_POLICY,
                 SE_SIGNING_LEVEL_DYNAMIC_CODEGEN, SE_SIGNING_LEVEL_MICROSOFT,
             },
             Threading::{
-                CreateProcessW, DeleteProcThreadAttributeList, GetCurrentThread,
-                InitializeProcThreadAttributeList, ProcessDynamicCodePolicy,
-                ProcessSignaturePolicy, SetProcessMitigationPolicy, UpdateProcThreadAttribute,
-                EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST, PROCESS_INFORMATION,
-                PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY, STARTF_USESTDHANDLES, STARTUPINFOEXW,
-                STARTUPINFOW_FLAGS,
+                CreateProcessW, DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT,
+                GetCurrentThread, InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST,
+                PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY, PROCESS_INFORMATION,
+                ProcessDynamicCodePolicy, ProcessSignaturePolicy, STARTF_USESTDHANDLES,
+                STARTUPINFOEXW, STARTUPINFOW_FLAGS, SetProcessMitigationPolicy,
+                UpdateProcThreadAttribute,
             },
         },
     },
+    core::{BOOL, HSTRING, PCWSTR, PWSTR},
 };
 
 const PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON: u64 =
@@ -126,45 +126,47 @@ fn get_filename() -> Result<String> {
 unsafe fn get_dll_attributes() -> Result<LPPROC_THREAD_ATTRIBUTE_LIST> {
     let mut attribute_size = usize::default();
 
-    // The first call returns an error, this is intentional
-    let _ = InitializeProcThreadAttributeList(None, 1, None, &mut attribute_size);
+    unsafe {
+        // The first call returns an error, this is intentional
+        let _ = InitializeProcThreadAttributeList(None, 1, None, &mut attribute_size);
 
-    let attributes = LPPROC_THREAD_ATTRIBUTE_LIST(HeapAlloc(
-        GetProcessHeap()?,
-        HEAP_ZERO_MEMORY,
-        attribute_size,
-    ));
+        let attributes = LPPROC_THREAD_ATTRIBUTE_LIST(HeapAlloc(
+            GetProcessHeap()?,
+            HEAP_ZERO_MEMORY,
+            attribute_size,
+        ));
 
-    match InitializeProcThreadAttributeList(Some(attributes), 1, None, &mut attribute_size) {
-        Ok(()) => {
-            info!("Initialized attribute list");
+        match InitializeProcThreadAttributeList(Some(attributes), 1, None, &mut attribute_size) {
+            Ok(()) => {
+                info!("Initialized attribute list");
+            }
+            Err(err) => {
+                error!("Failed to initialize attribute list: {:?}", err);
+                return Err(anyhow::anyhow!("Failed to initialize attribute list"));
+            }
         }
-        Err(err) => {
-            error!("Failed to initialize attribute list: {:?}", err);
-            return Err(anyhow::anyhow!("Failed to initialize attribute list"));
+
+        let policy = PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON;
+
+        match UpdateProcThreadAttribute(
+            attributes,
+            0,
+            PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY as usize,
+            Some(ptr::from_ref(&policy).cast::<c_void>()),
+            std::mem::size_of::<u64>(),
+            None,
+            None,
+        ) {
+            Ok(()) => {
+                info!("Updated attribute list");
+            }
+            Err(err) => {
+                error!("Failed to update attribute list: {:?}", err);
+                return Err(anyhow::anyhow!("Failed to update attribute list"));
+            }
         }
+        Ok(attributes)
     }
-
-    let policy = PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON;
-
-    match UpdateProcThreadAttribute(
-        attributes,
-        0,
-        PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY as usize,
-        Some(ptr::from_ref(&policy).cast::<c_void>()),
-        std::mem::size_of::<u64>(),
-        None,
-        None,
-    ) {
-        Ok(()) => {
-            info!("Updated attribute list");
-        }
-        Err(err) => {
-            error!("Failed to update attribute list: {:?}", err);
-            return Err(anyhow::anyhow!("Failed to update attribute list"));
-        }
-    }
-    Ok(attributes)
 }
 
 #[derive(Debug, Default, Clone, Copy)]

@@ -60,7 +60,7 @@ fn focus_window(app: &AppHandle) -> Result<()> {
 }
 
 fn create_window(app: &AppHandle) {
-    if let Some(window_config) = app.config().tauri.windows.first().cloned() {
+    match app.config().tauri.windows.first().cloned() { Some(window_config) => {
         match tauri::WindowBuilder::from_config(app, window_config).build() {
             Ok(window) => match window.show() {
                 Ok(()) => {
@@ -74,9 +74,9 @@ fn create_window(app: &AppHandle) {
                 error!("Failed to create window with err: {err}");
             }
         }
-    } else {
+    } _ => {
         error!("No window configuration found");
-    }
+    }}
 }
 
 pub(crate) fn handle_system_tray_event(app: &AppHandle, event: SystemTrayEvent) {

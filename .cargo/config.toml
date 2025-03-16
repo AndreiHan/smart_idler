@@ -1,3 +1,2 @@
 [build]
 rustflags = ["-C", "control-flow-guard"]
-target = "x86_64-pc-windows-msvc"
