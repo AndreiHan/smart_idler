@@ -9,10 +9,8 @@ rust-version.workspace = true
 registry_ops = { workspace = true }
 cell_data = { workspace = true }
 mitigations = { workspace = true }
-rayon = { workspace = true }
 tracing = { workspace = true }
 anyhow = { workspace = true }
-tokio = { workspace = true, features = ["full"] }
 windows = { workspace = true, features = [
   "Win32_System_LibraryLoader",
   "Win32_Graphics_Gdi",
@@ -24,7 +22,6 @@ windows = { workspace = true, features = [
   "Win32_UI_WindowsAndMessaging"
 ] }
 
-rand = { version = "0.9" }
 
 [lints]
 workspace = true

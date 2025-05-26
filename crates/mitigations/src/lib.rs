@@ -3,33 +3,33 @@ use std::{env, mem, os::raw::c_void, ptr};
 use tracing::{error, info};
 
 use windows::{
+    core::{BOOL, HSTRING, PCWSTR, PWSTR},
     Wdk::System::Threading::{NtSetInformationThread, ThreadHideFromDebugger},
     Win32::{
         Foundation::{
-            CloseHandle, GetLastError, HANDLE, HANDLE_FLAG_INHERIT, HANDLE_FLAGS,
-            SetHandleInformation,
+            CloseHandle, GetLastError, SetHandleInformation, HANDLE, HANDLE_FLAGS,
+            HANDLE_FLAG_INHERIT,
         },
         Security::SECURITY_ATTRIBUTES,
         Storage::FileSystem::{ReadFile, WriteFile},
         System::{
             Console::{GetStdHandle, STD_INPUT_HANDLE},
-            Memory::{GetProcessHeap, HEAP_ZERO_MEMORY, HeapAlloc},
+            Memory::{GetProcessHeap, HeapAlloc, HEAP_ZERO_MEMORY},
             Pipes::CreatePipe,
             SystemServices::{
                 PROCESS_MITIGATION_BINARY_SIGNATURE_POLICY, PROCESS_MITIGATION_DYNAMIC_CODE_POLICY,
                 SE_SIGNING_LEVEL_DYNAMIC_CODEGEN, SE_SIGNING_LEVEL_MICROSOFT,
             },
             Threading::{
-                CreateProcessW, DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT,
-                GetCurrentThread, InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST,
-                PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY, PROCESS_INFORMATION,
-                ProcessDynamicCodePolicy, ProcessSignaturePolicy, STARTF_USESTDHANDLES,
-                STARTUPINFOEXW, STARTUPINFOW_FLAGS, SetProcessMitigationPolicy,
-                UpdateProcThreadAttribute,
+                CreateProcessW, DeleteProcThreadAttributeList, GetCurrentThread,
+                InitializeProcThreadAttributeList, ProcessDynamicCodePolicy,
+                ProcessSignaturePolicy, SetProcessMitigationPolicy, UpdateProcThreadAttribute,
+                EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST, PROCESS_INFORMATION,
+                PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY, STARTF_USESTDHANDLES, STARTUPINFOEXW,
+                STARTUPINFOW_FLAGS,
             },
         },
     },
-    core::{BOOL, HSTRING, PCWSTR, PWSTR},
 };
 
 const PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON: u64 =

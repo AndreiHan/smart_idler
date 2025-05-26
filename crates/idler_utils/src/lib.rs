@@ -1,35 +1,36 @@
 use std::{mem::size_of_val, sync::LazyLock, thread, time::Duration};
 use tracing::{debug, error, info};
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 
 use windows::{
+    core::{w, BOOL, GUID},
     Win32::{
         Foundation::{GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
         System::{
             LibraryLoader::GetModuleHandleW,
             Power::{
-                ES_CONTINUOUS, ES_DISPLAY_REQUIRED, ES_SYSTEM_REQUIRED, ES_USER_PRESENT,
-                POWERBROADCAST_SETTING, RegisterPowerSettingNotification, SetThreadExecutionState,
+                RegisterPowerSettingNotification, SetThreadExecutionState, ES_CONTINUOUS,
+                ES_DISPLAY_REQUIRED, ES_SYSTEM_REQUIRED, ES_USER_PRESENT, POWERBROADCAST_SETTING,
             },
             SystemInformation::GetTickCount64,
             Threading::GetCurrentProcess,
         },
         UI::{
             Input::KeyboardAndMouse::{
-                GetLastInputInfo, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBD_EVENT_FLAGS,
-                KEYBDINPUT, KEYEVENTF_KEYUP, LASTINPUTINFO, MOUSEEVENTF_WHEEL, MOUSEINPUT,
-                SendInput, VK_ESCAPE,
+                GetLastInputInfo, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE,
+                KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, LASTINPUTINFO, MOUSEEVENTF_WHEEL,
+                MOUSEINPUT, VK_ESCAPE,
             },
             WindowsAndMessaging::{
-                CS_HREDRAW, CS_VREDRAW, CreateWindowExW, DefWindowProcW, DestroyWindow,
-                DispatchMessageW, GetMessageW, HWND_MESSAGE, IDC_ARROW, LoadCursorW, MSG,
-                PBT_APMQUERYSUSPEND, REGISTER_NOTIFICATION_FLAGS, RegisterClassW, TranslateMessage,
-                UnregisterClassW, WINDOW_EX_STYLE, WINDOW_STYLE, WM_POWERBROADCAST, WNDCLASSW,
+                CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
+                LoadCursorW, RegisterClassW, TranslateMessage, UnregisterClassW, CS_HREDRAW,
+                CS_VREDRAW, HWND_MESSAGE, IDC_ARROW, MSG, PBT_APMQUERYSUSPEND,
+                REGISTER_NOTIFICATION_FLAGS, WINDOW_EX_STYLE, WINDOW_STYLE, WM_POWERBROADCAST,
+                WNDCLASSW,
             },
         },
     },
-    core::{BOOL, GUID, w},
 };
 
 use registry_ops::get_current_time;

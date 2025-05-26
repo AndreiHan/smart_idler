@@ -4,7 +4,7 @@ extern crate msvc_spectre_libs;
 use tracing::{error, info};
 
 use anyhow::Result;
-use tauri::{Builder, RunEvent, generate_context};
+use tauri::{generate_context, Builder, RunEvent};
 
 mod registry_plugin;
 mod tray;

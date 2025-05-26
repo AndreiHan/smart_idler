@@ -13,7 +13,7 @@ resolver = "2"
 version = "0.0.1"
 authors = ["SI"]
 edition = "2021"
-rust-version = "1.85.0"
+rust-version = "1.87.0"
 
 license-file = "LICENSE"
 
@@ -24,18 +24,18 @@ cell_data = { path = "crates/cell_data" }
 mitigations = { path = "crates/mitigations" }
 app_controller = { path = "crates/app_controller" }
 
-tauri = "1.8.2"
+tauri = "1.8.3"
 tauri-build = { version = "1.5.6", features = [] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = { version = "1.0"}
 chrono = { version = "0.4"}
 once_cell = { version = "1.21" }
-windows = { version = "0.60"}
+windows = { version = "0.61"}
 clap = { version = "4.5", features = ["derive"] }
 const-random = { version = "0.1" }
 msvc_spectre_libs = "0.1"
-tokio = { version = "1.44", features = ["full"] }
+tokio = { version = "1.45.1", features = ["full"] }
 rayon = { version = "1.10"}
 tracing = { version = "0.1"}
 

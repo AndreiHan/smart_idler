@@ -10,7 +10,7 @@ rust-version.workspace = true
 
 [build-dependencies]
 tauri-build = { workspace = true }
-tauri-winres = "0.3.0"
+tauri-winres = "0.3.1"
 
 [dependencies]
 idler_utils = { workspace = true }
@@ -20,11 +20,9 @@ mitigations = { workspace = true }
 app_controller = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
-tracing-subscriber = "0.3"
+tracing-subscriber = "0.3.19"
 
-serde = { workspace = true, features = ["derive", "rc"] }
 anyhow = { workspace = true }
-once_cell = { workspace = true }
 msvc_spectre_libs = { workspace = true }
 tauri = { workspace = true, features = [
   "system-tray",

@@ -132,7 +132,7 @@ impl RegistrySetting {
                 return Err(err.into());
             }
         };
-        match app_key.set_string(&self.registry_entry.to_string(), &new_data) {
+        match app_key.set_string(self.registry_entry.to_string(), &new_data) {
             Ok(()) => {
                 info!(
                     "Set data {new_data:#?} in {}",
@@ -147,7 +147,7 @@ impl RegistrySetting {
                 );
                 return Err(err.into());
             }
-        };
+        }
         Ok(())
     }
 
